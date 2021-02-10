@@ -63,12 +63,12 @@ class Episode(Program):
         self.date = date
 
     @property
-    def episode(self):
-        return self._episode
+    def date(self):
+        return self._date
 
-    @episode.setter
-    def episode(self, e):
-        self._episode = e
+    @date.setter
+    def date(self, d):
+        self._date = d
 
     @property
     def __episode__(self):
@@ -78,21 +78,25 @@ class Episode(Program):
         return self.__episode__
 
 class Stream(Episode):
-    def __init__(self, channel, station, program, date, urls):
+    def __init__(self, channel, station, program, date, urlset):
         super().__init__(channel, station, program, date)
-        self.urls = urls
+        self.stream_urls = urlset
 
     @property
-    def stream(self):
-        return self._stream
+    def stream_urls(self):
+        return self._stream_urls
 
-    @stream.setter
-    def stream(self, e):
-        self._stream = e
+    @stream_urls.setter
+    def stream_urls(self, u):
+        self._stream_urls = u
+
+    @property
+    def stream_len(self):
+        return self.stream_urls.size
 
     @property
     def __stream__(self):
-        return f"stream⠶{len(self.urls)} from {self.__episode__}"
+        return f"stream⠶{self.stream_urls} from {self.__episode__}"
 
     def __repr__(self):
         return self.__stream__

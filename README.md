@@ -12,8 +12,8 @@
   URLs for the day's episode as:
   
   ```py
-  from tap.scrape import get_program_stream
-  stream = get_program_stream()
+  from tap.scrape import load_stream
+  stream = load_stream()
   ```
   
   - Currently this is defaulting to `bbc⠶r4⠶today`
@@ -21,7 +21,7 @@
   To get its URLs for the day before yesterday, pass the `ymd_ago` argument (a tuple):
   
   ```py
-  get_program_urls(ymd_ago=(0,0,-2))
+  load_stream(ymd_ago=(0,0,-2))
   ```
   ⇣
   ```STDOUT
@@ -32,10 +32,18 @@
   `(y,m,d)`] for an absolute date:
   
   ```py
-  stream = get_program_stream(ymd=(2021,2,8))
+  stream = load_stream(ymd=(2021,2,8))
   ```
 
 - **URL download**
+
+  (Optional) To handle or inspect a stream's URLs manually, `stream.stream_urls` is a generator
+  which can be iterated over:
+  
+  ```py
+  for u in stream.stream_urls:
+      ... # handle the URL content here
+  ```
 
   These URLs can then be downloaded ("pulled" asynchronously, without re-downloading
   any stream parts previously downloaded e.g. due to connection interruption).

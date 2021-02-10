@@ -4,11 +4,12 @@ from ..data.store.channels import _dir_path as data_dir
 from ..share.cal import cal_path, cal_shift, cal_date, parse_abs_from_rel_date
 from .streams import Stream
 from .link_file_handling import handle_link_file
+from .stream_url_handling import construct_urlset
 
-__all__ = ["get_program_urls"]
+__all__ = ["load_stream"]
 
 
-def get_program_urls(
+def load_stream(
     channel="bbc", station="r4", program="today", ymd=None, ymd_ago=None
 ):
     ymd = parse_abs_from_rel_date(ymd, ymd_ago)
@@ -31,15 +32,13 @@ def get_program_urls(
         raise ValueError("Failed to parse filename (did not contain '-' separator)")
 
     try:
-        last_file_num_int = int(last_file_num)
+        last_file_num_i = int(last_file_num)
     except ValueError as e:
         raise ValueError(f"{last_file_num} was non-numeric")
 
-    def construct_url(int_i, url_prefix=url_prefix, filename_prefix=filename_prefix):
-        return url_prefix + filename_prefix + str(int_i) + url_suffix
-
-    urls = [construct_url(i) for i in range(1, last_file_num_int + 1)]
+    # This should use StreamUrlSet
+    urlset = construct_urlset(last_file_num_i, url_prefix, filename_prefix, url_suffix)
     # for i in range(1, last_file_num+1):
     #    url_i = construct_url(i)
-    stream = Stream(channel, station, program, ymd, urls)
+    stream = Stream(channel, station, program, ymd, urlset)
     return stream
