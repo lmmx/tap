@@ -9,6 +9,7 @@ __all__ = [
     "cal_path",
     "y_shift", "m_shift", "d_shift",
     "cal_shift", "cal_date",
+    "parse_abs_from_rel_date",
 ]
 
 def cal_y(date=cal_date.today()):
@@ -51,3 +52,22 @@ def d_shift(d=0, date=cal_date.today()):
 
 def cal_shift(y=0, m=0, d=0, date=cal_date.today()):
     return date + rd(years=y, months=m, days=d) if any([y, m, d]) else date
+
+def parse_abs_from_rel_date(ymd=None, ymd_ago=None):
+    if ymd is ymd_ago is None:
+        ymd = cal_date.today()
+    else:
+        # If ymd was supplied, do type conversion if passed as int tuple
+        if isinstance(ymd, tuple):
+            if all(map(lambda i: isinstance(i, int), ymd)):
+                ymd = cal_date(*ymd)
+            else:
+                raise TypeError(f"{ymd=} is neither a datetime.date nor integer tuple")
+        if all([ymd, ymd_ago]):
+            # both ymd and ymd_ago are not None (i.e. are supplied) so shift accordingly
+            ymd = cal_shift(*ymd_ago, date=ymd)
+        elif ymd_ago:
+            ymd = cal_shift(*ymd_ago)
+        # else implies ymd was supplied
+    # In each of the above cases `ymd` is now a `datetime.date` object
+    return ymd

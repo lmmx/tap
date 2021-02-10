@@ -4,33 +4,47 @@
 
 ## Usage
 
-### Download execution
+### Stream downloading
 
-For a given program, we can get its URLs for the day's show as:
+- **URL retrieval**
 
-```py
-from tap.scrape import get_program_urls
-get_program_urls()
-```
+  For a given program, we can populate a `Stream` object with its
+  URLs for the day's episode as:
+  
+  ```py
+  from tap.scrape import get_program_stream
+  stream = get_program_stream()
+  ```
+  
+  - Currently this is defaulting to `bbc⠶r4⠶today`
+  
+  To get its URLs for the day before yesterday, pass the `ymd_ago` argument (a tuple):
+  
+  ```py
+  get_program_urls(ymd_ago=(0,0,-2))
+  ```
+  ⇣
+  ```STDOUT
+  stream⠶1716 from episode⠶2021-02-08 of program⠶today on station⠶r4 on channel⠶bbc
+  ```
+  
+  or pass the `ymd` argument [either a `datetime.date` or an integer tuple
+  `(y,m,d)`] for an absolute date:
+  
+  ```py
+  stream = get_program_stream(ymd=(2021,2,8))
+  ```
 
-- Currently this is defaulting to `bbc⠶r4⠶today`
+- **URL download**
 
-To get its URLs for yesterday, pass the `ymd_ago` argument (a tuple):
-
-```py
-urls = get_program_urls(ymd_ago=(0,0,-1))
-```
-
-or pass the `ymd` argument [either a `datetime.date` or an integer tuple
-`(y,m,d)`] for an absolute date:
-
-```py
-urls = get_program_urls(ymd=(2021,2,8))
-```
-
-These URLs can then be passed to the async scraper
-
-(TODO)
+  These URLs can then be downloaded ("pulled" asynchronously, without re-downloading
+  any stream parts previously downloaded e.g. due to connection interruption).
+  
+  ```py
+  stream.pull()
+  ```
+  
+  (TODO)
 
 ### Catalogue exploration
 
