@@ -1,7 +1,7 @@
 from subprocess import call
 from pathlib import Path
-from ..data.store.channels import dir_path as data_dir
-from ..share.cal import cal_path, cal_shift
+from ..data.store.channels import _dir_path as data_dir
+from ..share.cal import cal_path, cal_shift, cal_date
 
 __all__ = ["get_program_urls"]
 
@@ -9,19 +9,25 @@ _link_filename = "last-link.txt"
 
 
 def get_program_urls(
-    channel="bbc", station="r4", program="today", date=None, ymd_ago=None
+    channel="bbc", station="r4", program="today", ymd=None, ymd_ago=None
 ):
-    if date is ymd_ago is None:
+    if ymd is ymd_ago is None:
         cal_subpath = cal_path()  # defaults to today
-    elif all([date, ymd_ago]):
-        # both date and ymd_ago are not None (i.e. are supplied) so calculate date
-        offset_date = cal_shift(*ymd_ago, date=date)
-        cal_subpath = cal_path(offset_date)
-    elif date:
-        cal_subpath = cal_path(date)
-    else:  # implies ymd_ago was supplied
+    elif ymd_ago:
         offset_date = cal_shift(*ymd_ago)
         cal_subpath = cal_path(offset_date)
+    # Now know that ymd was supplied, so do type conversion if passed as int tuple
+    if isinstance(ymd, tuple):
+        if all(map(lambda i: isinstance(i, int), ymd)):
+            ymd = cal_date(*ymd)
+        else:
+            raise TypeError(f"{ymd=} is neither a datetime.date nor integer tuple")
+    if all([ymd, ymd_ago]):
+        # both ymd and ymd_ago are not None (i.e. are supplied) so calculate date
+        offset_date = cal_shift(*ymd_ago, date=ymd)
+        cal_subpath = cal_path(offset_date)
+    else:  # implies date was supplied
+        cal_subpath = cal_path(ymd)
 
     prog_date_dir = data_dir / channel / station / program / cal_subpath
 
