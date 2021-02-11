@@ -24,10 +24,9 @@ def load_stream(
     last_filename = Path(Path(last_link_url).name)
     url_prefix = last_link_url[: -len(last_filename.name)]
     url_suffix = last_filename.suffix
-    *filename_prefix, last_file_num = last_filename.stem.rpartition("-")
-    filename_prefix = "".join(filename_prefix)
+    fname_prefix, fname_sep, last_file_num = last_filename.stem.rpartition("-")
 
-    if filename_prefix == "":
+    if fname_prefix == fname_sep == "":
         # rpartition gives two empty strings and the original string if separator not found
         raise ValueError("Failed to parse filename (did not contain '-' separator)")
 
@@ -37,7 +36,7 @@ def load_stream(
         raise ValueError(f"{last_file_num} was non-numeric")
 
     # This should use StreamUrlSet
-    urlset = construct_urlset(last_file_num_i, url_prefix, filename_prefix, url_suffix)
+    urlset = construct_urlset(last_file_num_i, url_prefix, fname_prefix, fname_sep, url_suffix)
     # for i in range(1, last_file_num+1):
     #    url_i = construct_url(i)
     stream = Stream(channel, station, program, ymd, urlset)

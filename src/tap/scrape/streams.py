@@ -1,3 +1,9 @@
+from .async_utils import fetch_urls
+from ..share.cal import cal_path
+from ..data.store import channels
+import asyncio
+from functools import reduce
+
 class Channel:
     def __init__(self, channel):
         self.channel = channel
@@ -51,6 +57,14 @@ class Program(Station):
         self._program = p
 
     @property
+    def program_parts(self):
+        return self.channel, self.station, self.program
+
+    @property
+    def program_dir(self):
+        return reduce(getattr, self.program_parts, channels)._dir_path
+
+    @property
     def __program__(self):
         return f"program⠶{self.program} on {self.__station__}"
 
@@ -69,6 +83,14 @@ class Episode(Program):
     @date.setter
     def date(self, d):
         self._date = d
+
+    @property
+    def episode_dir(self):
+        return self.program_dir / cal_path(self.date)
+
+    @property
+    def download_dir(self):
+        return self.episode_dir / "assets"
 
     @property
     def __episode__(self):
@@ -100,3 +122,14 @@ class Stream(Episode):
 
     def __repr__(self):
         return self.__stream__
+
+    def pull(self, dummy_run=False):
+        print(f"Pulling {self.stream_urls}")
+        if dummy_run:
+            l = "cal log conf pore ocu arc qrx erg opt poll arb reed noto plot doc labs"
+            urls = (f"https://{s}.spin.systems" for s in l.split())
+        else:
+            urls = self.stream_urls
+        result = fetch_urls(urls, download_dir=self.download_dir)
+        print("Done")
+        return result
