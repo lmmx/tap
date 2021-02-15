@@ -22,7 +22,6 @@ stream.pull()
 - To get its URLs for the day before yesterday, pass the `ymd_ago` argument (a tuple)
   e.g. `load_stream(ymd_ago=(0,0,-2))` or pass the `ymd` argument [either a `datetime.date` or an integer tuple
   `(y,m,d)`] for an absolute date e.g. `load_stream(ymd=(2021,2,8))`
-  ```
   
 After pulling URLs, concatenate them into a single output:
 
