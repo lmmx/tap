@@ -8,6 +8,8 @@ def gather_m4s_to_mp4(dash_file, m4s_files, output_mp4):
     Files can be passed either as explicit list of filenames or globbed with
     a Kleene-star string (note: Python `glob.glob` is unsorted, do not use).
     """
+    if output_mp4.exists():
+        raise ValueError(f"{output_mp4=} already exists: risk of doubled output")
     command_iter = "for x in".split(), 
     command_do = "; do cat $x >>".split()
     command_done = "; done".split()
