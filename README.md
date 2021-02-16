@@ -14,8 +14,6 @@ the audio ready for transcription:
 ```py
 from tap.scrape import load_stream
 stream = load_stream()
-stream.pull()
-stream.preprocess()
 ```
 
 - Current default for `load_stream` is the BBC R4 Today programme.
@@ -25,7 +23,9 @@ stream.preprocess()
   e.g. `load_stream(ymd_ago=(0,0,-2))` or pass the `ymd` argument [either a `datetime.date` or an integer tuple
   `(y,m,d)`] for an absolute date e.g. `load_stream(ymd=(2021,2,8))`
   
-After pulling the MP4 stream from its URLs, `preprocess` concatenates them into a single output
+The `load_stream` function initialises a `Stream` object, and upon doing so the
+`Stream.pull()` and `Stream.preprocess()` methods are called, to pull the MP4
+stream from its URLs, then concatenate them into a single output
 and convert to WAV at 16 kHz, equivalent to the following shell commands:
 
 ```sh
@@ -67,7 +67,7 @@ the "no energy" label to the speech immediately at the beginning of an arbitrari
 audio clip (e.g. previously I split the program into 60 second breaks).
 
 Given a minimum window (e.g. 10 seconds) we can segment on these "no energy" pauses.
-Any smaller segments than this would simply be fused together.
+Any smaller segments than this simply get fused together.
 
 ### Catalogue exploration
 
