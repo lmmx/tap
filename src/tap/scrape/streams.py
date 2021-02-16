@@ -7,6 +7,7 @@ from ..data.store import channels
 import asyncio
 from functools import reduce
 from glob import glob
+from pathlib import Path
 
 class Channel:
     def __init__(self, channel):
@@ -107,6 +108,8 @@ class Stream(Episode):
     def __init__(self, channel, station, program, date, urlset):
         super().__init__(channel, station, program, date)
         self.stream_urls = urlset
+        self.pull()
+        self.preprocess()
 
     @property
     def stream_urls(self):
@@ -127,16 +130,17 @@ class Stream(Episode):
     def __repr__(self):
         return self.__stream__
 
-    def pull(self, dummy_run=False):
-        print(f"Pulling {self.stream_urls}")
-        if dummy_run:
-            l = "cal log conf pore ocu arc qrx erg opt poll arb reed noto plot doc labs"
-            urls = (f"https://{s}.spin.systems" for s in l.split())
-        else:
-            urls = self.stream_urls
-        result = fetch_urls(urls, download_dir=self.download_dir)
-        print("Done")
-        return result
+    def pull(self, verbose=False):
+        if verbose:
+            print(f"Pulling {self.stream_urls}")
+        urls = self.stream_urls
+        last_url = self.stream_urls.make_part_url(urls.size)
+        last_url_file = self.download_dir / Path(str(last_url)).name
+        if not last_url_file.exists():
+            fetch_urls(urls, download_dir=self.download_dir)
+        if verbose:
+            print("Done")
+        return
 
     def preprocess(self):
         """

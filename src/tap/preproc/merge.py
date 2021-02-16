@@ -11,17 +11,16 @@ def gather_m4s_to_mp4(dash_file, m4s_files, output_mp4):
     """
     if output_mp4.exists():
         raise ValueError(f"{output_mp4=} already exists: risk of doubled output")
-    command_iter = "for x in".split(), 
-    command_do = "; do cat $x >>".split()
-    command_done = "; done".split()
-    subprocess.call([
-        *command_iter,
-        dash_file,
-        m4s_files,
-        *command_do,
-        output_mp4,
-        *command_done,
-    ])
+    cmd_list = [
+        *"for x in".split(),
+        f'{dash_file}',
+        f'{m4s_files}',
+        *"; do cat $x >>".split(),
+        f'{output_mp4}',
+        *"; done".split(),
+    ]
+    subprocess.call(cmd_list)
+    # TODO: rewrite as glob, this doesn't work
 
 def gather_pulled_downloads(input_dir, output_dir):
     """
