@@ -139,8 +139,10 @@ class Stream(Episode):
         return result
 
     def preprocess(self):
-        "Gather stream files into a single MP4 file, convert to WAV, segment it
-        at pauses in the audio, and create smaller WAV files accordingly."
+        """
+        Gather stream files into a single MP4 file, convert to WAV, segment it
+        at pauses in the audio, and create smaller WAV files accordingly.
+        """
         transcoded_wav = self.episode_dir / "output.wav"
         if not transcoded_wav.exists():
             gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
