@@ -1,0 +1,36 @@
+import subprocess
+
+__all__ = []
+
+def gather_m4s_to_mp4(dash_file, m4s_files, output_mp4):
+    """
+    Concatenate `.dash` and `.m4s` files using the system `cat` facility.
+    Files can be passed either as explicit list of filenames or globbed with
+    a Kleene-star string (note: Python `glob.glob` is unsorted, do not use).
+    """
+    command_iter = "for x in".split(), 
+    command_do = "; do cat $x >>".split()
+    command_done = "; done".split()
+    subprocess.call([
+        *command_iter,
+        dash_file,
+        m4s_files,
+        *command_do,
+        output_mp4,
+        *command_done,
+    ])
+
+def gather_pulled_downloads(input_dir, output_dir):
+    """
+    Gather MPEG stream files from input_dir into a single MP4 file in output_dir
+    """
+    dash_globstr = f"{input_dir.absolute() / '*.dash'}"
+    dash_glob = glob(dash_globstr)
+    if len(dash_glob) < 1:
+        raise ValueError(f"No dash file found in {input_dir}")
+    elif len(dash_glob) > 1:
+        raise ValueError(f"Multiple dash files found in {input_dir}")
+    m4s_globstr = f"{input_dir.absolute() / '*.m4s'}"
+    output_mp4 = output_dir.absolute() / "output.mp4"
+    gather_m4s_to_mp4(dash_globstr, m4s_globstr, output_mp4)
+    return output_mp4
