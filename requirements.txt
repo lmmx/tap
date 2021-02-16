@@ -5,3 +5,5 @@ aiofiles
 inaSpeechSegmenter
 soundfile
 ffmpeg-python
+more_itertools
+tqdm

@@ -1,8 +1,8 @@
 from .async_utils import fetch_urls
 from ..share.cal import cal_path
-from ..preproc.merge import gather_m4s_to_mp4
+from ..preproc.merge import gather_pulled_downloads
 from ..preproc.format_conversion import mp4_to_wav
-from ..preproc.segment import segment_audio_at_breaks
+from ..preproc.segment import segment_at_breaks_and_spread
 from ..data.store import channels
 import asyncio
 from functools import reduce
@@ -139,7 +139,10 @@ class Stream(Episode):
         return result
 
     def preprocess(self):
-        "Gather stream files into a single MP4 file, convert to WAV, and segment it."
-        gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
-        transcoded_wav = mp4_to_wav(gathered_mp4)
-        segment_audio_at_breaks(transcoded_wav)
+        "Gather stream files into a single MP4 file, convert to WAV, segment it
+        at pauses in the audio, and create smaller WAV files accordingly."
+        transcoded_wav = self.episode_dir / "output.wav"
+        if not transcoded_wav.exists():
+            gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
+            transcoded_wav = mp4_to_wav(gathered_mp4)
+        segment_at_breaks_and_spread(transcoded_wav)

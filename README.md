@@ -8,12 +8,14 @@
 ### Stream downloading
 
 For a given program, we can make a `Stream` object with its
-URLs for the day's episode and download ("pull") them:
+URLs for the day's episode, download ("pull"), and segment ("preprocess")
+the audio ready for transcription:
 
 ```py
 from tap.scrape import load_stream
 stream = load_stream()
 stream.pull()
+stream.preprocess()
 ```
 
 - Current default for `load_stream` is the BBC R4 Today programme.
@@ -23,34 +25,29 @@ stream.pull()
   e.g. `load_stream(ymd_ago=(0,0,-2))` or pass the `ymd` argument [either a `datetime.date` or an integer tuple
   `(y,m,d)`] for an absolute date e.g. `load_stream(ymd=(2021,2,8))`
   
-After pulling the MP4 stream from its URLs, concatenate them into a single output
-and convert to WAV at 16 kHz:
+After pulling the MP4 stream from its URLs, `preprocess` concatenates them into a single output
+and convert to WAV at 16 kHz, equivalent to the following shell commands:
 
 ```sh
 for x in assets/*.dash assets/*.m4s; do cat $x >> output.mp4; done
 ffmpeg -i output.mp4 -ar 16000 -ac 2 -f wav output.wav
-#ffmpeg -i output.wav -f segment -segment_time 60 -c copy segmented/output%09d.wav
 ```
 
-- Currently this must be done on the command line manually (TODO: use `ffmpeg-python`)
-- Deprecated: segmentation into 60 second chunks replaced by speaker segmentation
-  for more accurate transcription
+In the final step of preprocessing, the audio is chopped up ("segmented") at 'gaps'
+(typically, pauses between speech). This is obtained via the
+[INA speech segmenter](https://github.com/ina-foss/inaSpeechSegmenter)
+called from Python but equivalent to:
 
-### Speaker segmentation
+```sh
+ina_speech_segmenter.py -i ./entire_program.wav -o ./segmented/
+```
 
-Speech segments can be obtained with [inaSpeechSegmenter](https://github.com/ina-foss/inaSpeechSegmenter).
-
-First, obtain the segmentation of speech/noise/music (by default it will also annotate gender,
+First, the audio is labelled as speech/noise/music (by default it will also annotate gender,
 which in my experience gives more accurate speaker segmentation). While gender assignment is
 not necessary if we are solely interested in the blanks (annotated as `noEnergy`), obtaining
 it now means it's unnecessary to recompute later:
 
-```sh
-mkdir seg_times
-ina_speech_segmenter.py -i ./entire_program.wav -o ./seg_times/ -g "false"
-```
-
-This will create a file `./seg_times/entire_program.csv` which starts something like this:
+This creates a TSV something like this:
 
 ```csv
 labels  start   stop
@@ -69,11 +66,8 @@ The benefit of calculating this once on the entire program is that it's less lik
 the "no energy" label to the speech immediately at the beginning of an arbitrarily segmented
 audio clip (e.g. previously I split the program into 60 second breaks).
 
-Given a minimum window (e.g. 30 seconds) we can suggest to segment on "no energy" gaps.
+Given a minimum window (e.g. 10 seconds) we can segment on these "no energy" pauses.
 Any smaller segments than this would simply be fused together.
-This will give a minimum possible length of 30 seconds and a maximum length of 60 seconds.
-
-- Work in progress: split up the entire program on "no energy" gaps.
 
 ### Catalogue exploration
 
