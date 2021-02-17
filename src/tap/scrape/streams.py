@@ -113,6 +113,7 @@ class Stream(Episode):
         self.stream_urls = urlset
         self.pull()
         self.preprocess()
+        breakpoint()
         self.transcribe()
 
     @property
@@ -175,4 +176,11 @@ class Stream(Episode):
     def transcribe(self):
         files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
         # Setting `.transcripts` attr adds `transcript` column to `.transcript_timings`
-        self.transcripts = [*map(transcribe_audio_file, files_to_transcribe)]
+        print(f"Transcribing {len(files_to_transcribe)} segmented audio files", file=stderr)
+        transcript_dir = self.segment_dir / "transcripts"
+        transcript_dir.mkdir(exist_ok=True)
+        for f in tqdm(files_to_transcribe):
+            transcript = transcribe_audio_file(f)
+            with open(transcript_dir / f"{f.stem}.txt", "w") as f:
+                f.write(transcript)
+        #self.transcripts = [*map(transcribe_audio_file, files_to_transcribe)]

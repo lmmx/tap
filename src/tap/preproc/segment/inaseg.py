@@ -7,7 +7,9 @@ from glob import glob
 from itertools import count
 from functools import partial
 from .segment_extract import read_audio_section, extract_as_clip
+from .naiveseg import estimate_pauses
 from ...share.audio import get_track_length
+from ...share.pandas import insert_replacement_rows
 from ...share.multiproc import batch_multiprocess
 
 __all__ = [
@@ -171,6 +173,7 @@ def segment_intervals_from_ranges(
     final_params = extraction_params[-1]
     if final_params[-1] == "frames":
         s_fin_params = (*final_params[:2], final_params[2]/sr, final_params[3]/sr, "s")
+        extraction_params[-1] = s_fin_params
     segment_time_df = pd.DataFrame(
         dict(zip("input output start stop unit".split(), zip(*extraction_params)))
     )
@@ -178,7 +181,7 @@ def segment_intervals_from_ranges(
 
 
 def segment_pauses_and_spread(
-    input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=DEFAULT_MIN_S
+    input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=DEFAULT_MIN_S, max_s=60.
 ):
     """
     Calculate the audio segmentation of the `input_wav` file by calling
@@ -213,6 +216,26 @@ def segment_pauses_and_spread(
     segment_intervals = segment_intervals_from_ranges(
         input_wav, pause_segments, segmented_out_dir, min_s=min_s, dry_run=dry_run,
     )
+    #segment_intervals["from_ina"] = True
+    surplus_duration = (segment_intervals.stop - segment_intervals.start).gt(max_s)
+    if surplus_duration.any():
+        segment_interval_replacements = {}
+        # Estimate a finer segmentation by estimating pauses based on amplitude minima
+        surplus_duration_intervals = segment_intervals[surplus_duration]
+        for row_idx, row in surplus_duration_intervals.iterrows():
+            assert row.unit == "s" # All frame units must be replaced by now
+            estimated_intra_segment_intervals = estimate_pauses(
+                row.input, row.output, row.start, row.stop, min_s, max_s
+            )
+            segment_interval_replacements.update(
+                {row_idx: estimated_intra_segment_intervals}
+            )
+        breakpoint()
+        segment_intervals = insert_replacement_rows(
+            segment_intervals, segment_interval_replacements
+        )
+        # TODO: replace file names (is it strictly necessary?)
+        # reassign_output_filenames_by_index(segment_intervals)
     return segment_intervals, segmented_out_dir
 
 
