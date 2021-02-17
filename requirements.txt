@@ -7,3 +7,7 @@ soundfile
 ffmpeg-python
 more_itertools
 tqdm
+transformers
+librosa
+tensorflow-gpu
+matplotlib<3.30

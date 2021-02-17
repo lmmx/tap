@@ -3,6 +3,36 @@
 `tap` is an audio transcriber for web radio
 (so far just BBC)
 
+## Requirements
+
+The pre-requisites for installation are:
+
+- Python 3
+- `tensorflow-gpu`, or `tensorflow` for CPU-only (required for speech segmentation, not recommended
+  to install via pip)
+
+Dependencies are specified in `requirements.txt`:
+
+- dateutil
+- HTTPX (with HTTP/2 support), aiostream, aiofiles
+- [ffmpeg-python](https://github.com/kkroening/ffmpeg-python)
+- [inaSpeechSegmenter](https://github.com/ina-foss/inaSpeechSegmenter)
+  - Dependency: `sidekit`
+    - Forces `matplotlib<3.3.0` due to a deprecation of the
+      [`warn` argument to `use`](https://matplotlib.org/stable/api/prev_api_changes/api_changes_3.3.0.html?highlight=deprecations#arguments)
+- soundfile
+
+### Suggested conda setup
+
+```sh
+conda create -n tap
+conda activate tap
+conda install "cudatoolkit>=11.0,<11.0.221" -c conda-forge
+conda install pytorch torchaudio -c pytorch
+pip install -r requirements.txt
+pip install -e . # or `pip install .` for a fixed installation
+```
+
 ## Usage
 
 ### Stream downloading
@@ -24,8 +54,8 @@ stream = load_stream()
   `(y,m,d)`] for an absolute date e.g. `load_stream(ymd=(2021,2,8))`
   
 The `load_stream` function initialises a `Stream` object, and upon doing so the
-`Stream.pull()` and `Stream.preprocess()` methods are called, to pull the MP4
-stream from its URLs, then concatenate them into a single output
+`Stream.pull()`, `Stream.preprocess()`, and `Stream.transcribe()` methods are called
+in sequence, to pull the MP4 stream from its URLs, concatenate into a single output
 and convert to WAV at 16 kHz, equivalent to the following shell commands:
 
 ```sh
@@ -69,6 +99,10 @@ audio clip (e.g. previously I split the program into 60 second breaks).
 Given a minimum window (e.g. 10 seconds) we can segment on these "no energy" pauses.
 Any smaller segments than this simply get fused together.
 
+Lastly, a Wav2Vec2 model trained for 960h is loaded from the HuggingFace Hub,
+and the text produced is annotated onto each segment in the `Stream.transcripts`
+attribute (which when set adds a column to the `Stream.transcript_timings` DataFrame).
+
 ### Catalogue exploration
 
 The namespace of the channels provides an inventory, so running:
@@ -88,29 +122,3 @@ channels.bbc.r4.today
 ```
 
 (TBC)
-
-## Requirements
-
-The pre-requisites for installation are:
-
-- Python 3
-- `tensorflow-gpu`, or `tensorflow` for CPU-only (required for speech segmentation, not recommended
-  to install via pip)
-
-Dependencies are specified in `requirements.txt`:
-
-- dateutil
-- HTTPX (with HTTP/2 support), aiostream, aiofiles
-- [ffmpeg-python](https://github.com/kkroening/ffmpeg-python)
-- [inaSpeechSegmenter](https://github.com/ina-foss/inaSpeechSegmenter)
-- soundfile
-
-### Suggested conda setup
-
-```sh
-conda create -n tap
-conda activate tap
-conda install python tensorflow-gpu # or tensorflow for CPU-only
-pip install -r requirements.txt
-pip install -e . # or `pip install .` for a fixed installation
-```

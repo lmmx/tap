@@ -1,5 +1,6 @@
+import warnings
+from matplotlib import MatplotlibDeprecationWarning
 from pathlib import Path
-import subprocess
 import pandas as pd
 import numpy as np
 from glob import glob
@@ -17,14 +18,25 @@ __all__ = [
     "get_segment_times",
     "update_wav_counter",
     "segment_intervals_from_ranges",
-    "segment_at_breaks_and_spread",
+    "segment_pauses_and_spread",
 ]
 
 DEFAULT_MIN_S = 5.0
 
+
 def run_inaseg(input_wav, csv_out_dir):
-    # TODO: switch out for Python library itself
-    subprocess.call(["ina_speech_segmenter.py", "-i", input_wav, "-o", csv_out_dir])
+    # load neural network into memory, may last few seconds
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=MatplotlibDeprecationWarning)
+        from inaSpeechSegmenter import Segmenter
+    seg = Segmenter(vad_engine="smn", detect_gender=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        stem = input_wav.stem
+        input_files = [str(input_wav)]
+        output_files = [str(csv_out_dir / f"{stem}.csv")]
+        seg.batch_process(input_files, output_files, verbose=True)
+    #subprocess.run(["ina_speech_segmenter.py", "-i", input_wav, "-o", csv_out_dir])
     return get_csv_path(input_wav, csv_out_dir)
 
 
@@ -105,7 +117,7 @@ def update_wav_counter(clip_counter, zfill_len, out_dir, wav_stem, wav_suff):
 
 
 def segment_intervals_from_ranges(
-    input_wav, segment_range_df, segmented_out_dir, min_s=DEFAULT_MIN_S
+    input_wav, segment_range_df, segmented_out_dir, min_s=DEFAULT_MIN_S, dry_run=False,
 ):
     """
     Segmentation of files from input file. The algorithm proceeds row by row through the
@@ -153,28 +165,55 @@ def segment_intervals_from_ranges(
     func_list = [
         partial(extract_as_clip, *arg_tuple) for arg_tuple in extraction_params
     ]
-    batch_multiprocess(func_list)
+    if not dry_run:
+        batch_multiprocess(func_list)
+    # Just revert the final row's unit to seconds rather than handling in pandas
+    final_params = extraction_params[-1]
+    if final_params[-1] == "frames":
+        s_fin_params = (*final_params[:2], final_params[2]/sr, final_params[3]/sr, "s")
+    segment_time_df = pd.DataFrame(
+        dict(zip("input output start stop unit".split(), zip(*extraction_params)))
+    )
+    return segment_time_df
 
 
-def segment_at_breaks_and_spread(
+def segment_pauses_and_spread(
     input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=DEFAULT_MIN_S
 ):
+    """
+    Calculate the audio segmentation of the `input_wav` file by calling
+    `inaSpeechSegementer` (unfortunately this uses threads for batch processing
+    and so does not use all cores at maximal efficiency), producing a TSV in
+    `csv_out_dir` (by default this will be the parent directory of `input_wav`).
+
+    Once the segmentation is computed, go on to calculate the intervals inclusive of
+    the gaps between these segments (from the start of the audio to the end of the
+    first pause, then from the end of the first pause to the start of the second pause,
+    and so on, until the final pause which is merged up to the end of the track).
+
+    If there are already files in a segmented directory, assume already computed
+    (delete the directory or the wav files in it if this is not the case, e.g.
+    if the computation was interrupted).
+
+    Return the segment intervals (note: these are the start- and end-inclusive
+    intervals as opposed to the segmentation ranges provided by `inaSpeechSegmenter`
+    which only cover the 'pauses', the segment intervals cover the entire audio).
+    """
     if csv_out_dir is None:
         csv_out_dir = input_wav.parent
     if segmented_out_dir is None:
         segmented_out_dir = csv_out_dir / "segmented"
-        if segmented_out_dir.exists() and glob(str(segmented_out_dir / "*.wav")):
-            raise ValueError(f"Segmented files already exist in {segmented_out_dir}")
-        else:
-            segmented_out_dir.mkdir(exist_ok=True)
+    dry_run = segmented_out_dir.exists() and glob(str(segmented_out_dir / "*.wav"))
+    segmented_out_dir.mkdir(exist_ok=True)
     if not get_csv_path(input_wav, csv_out_dir).exists():
-        csv_out = run_inaseg(input_wav, csv_out_dir) # verbose/slow step
+        csv_out = run_inaseg(input_wav, csv_out_dir)  # verbose/slow step
     csv_df = read_csv_out(input_wav, csv_out_dir)
     pause_segments = get_segment_times(csv_df, breaks=True, no_energy=True)
     # Create segmented output WAV files using all cores
-    segment_intervals_from_ranges(
-        input_wav, pause_segments, segmented_out_dir, min_s=min_s
+    segment_intervals = segment_intervals_from_ranges(
+        input_wav, pause_segments, segmented_out_dir, min_s=min_s, dry_run=dry_run,
     )
+    return segment_intervals, segmented_out_dir
 
 
 # max_break = breaks[breaks.duration.eq(breaks.duration.max())]

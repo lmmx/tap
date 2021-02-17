@@ -2,12 +2,15 @@ from .async_utils import fetch_urls
 from ..share.cal import cal_path
 from ..preproc.merge import gather_pulled_downloads
 from ..preproc.format_conversion import mp4_to_wav
-from ..preproc.segment import segment_at_breaks_and_spread
+from ..preproc.segment import segment_pauses_and_spread
+from ..stt import transcribe_audio_file
 from ..data.store import channels
 import asyncio
 from functools import reduce
 from glob import glob
 from pathlib import Path
+from sys import stderr
+from tqdm import tqdm
 
 class Channel:
     def __init__(self, channel):
@@ -110,6 +113,7 @@ class Stream(Episode):
         self.stream_urls = urlset
         self.pull()
         self.preprocess()
+        self.transcribe()
 
     @property
     def stream_urls(self):
@@ -130,6 +134,20 @@ class Stream(Episode):
     def __repr__(self):
         return self.__stream__
 
+    @property
+    def transcripts(self):
+        return self._transcripts
+
+    @transcripts.setter
+    def transcripts(self, transcripts):
+        self._transcripts = transcripts
+        if hasattr(self, "transcript_timings"):
+            # Set a column on the segment_times dataframe with the transcript text
+            try:
+                self.segment_times["transcript"] = transcripts
+            except Exception as e:
+                print(e, file=stderr) # Errors break entire object initialisation
+
     def pull(self, verbose=False):
         if verbose:
             print(f"Pulling {self.stream_urls}")
@@ -137,7 +155,8 @@ class Stream(Episode):
         last_url = self.stream_urls.make_part_url(urls.size)
         last_url_file = self.download_dir / Path(str(last_url)).name
         if not last_url_file.exists():
-            fetch_urls(urls, download_dir=self.download_dir)
+            pbar = tqdm(total=urls.size)
+            fetch_urls(urls, download_dir=self.download_dir, pbar=pbar, verbose=verbose)
         if verbose:
             print("Done")
         return
@@ -151,4 +170,9 @@ class Stream(Episode):
         if not transcoded_wav.exists():
             gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
             transcoded_wav = mp4_to_wav(gathered_mp4)
-        segment_at_breaks_and_spread(transcoded_wav)
+        self.transcript_timings, self.segment_dir = segment_pauses_and_spread(transcoded_wav)
+
+    def transcribe(self):
+        files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
+        # Setting `.transcripts` attr adds `transcript` column to `.transcript_timings`
+        self.transcripts = [*map(transcribe_audio_file, files_to_transcribe)]

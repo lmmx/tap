@@ -1,4 +1,3 @@
-import subprocess
 from glob import glob
 
 __all__ = []
@@ -9,9 +8,10 @@ def gather_m4s_to_mp4(dash_file, m4s_files, output_mp4):
     """
     if output_mp4.exists():
         raise ValueError(f"{output_mp4=} already exists: risk of doubled output")
-    for mpeg in [dash_file, *m4s_files]:
-        cmd_list = ["cat", f"{mpeg}", ">>", f"{output_mp4}"]
-        subprocess.call(cmd_list)
+    with open(output_mp4, "ab") as f:
+        for mpeg in [dash_file, *m4s_files]:
+            with open(mpeg, "rb") as part_f:
+                f.write(part_f.read())
 
 def gather_pulled_downloads(input_dir, output_dir):
     """

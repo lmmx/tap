@@ -12,26 +12,29 @@ async def fetch(session, url):
     return response
 
 
-async def process(data, download_dir):
+async def process(data, download_dir, pbar=None, verbose=False):
     if not download_dir.exists():
         download_dir.mkdir()
     filename = Path(str(data.url)).name
     download_filepath = download_dir / filename
     async with aiofiles.open(download_filepath, "wb") as f:
         await f.write(data.content)
-    print({data.url: data})
+    if verbose:
+        print({data.url: data})
+    if pbar:
+        pbar.update()
 
 
-async def async_fetch_urlset(urls, download_dir):
+async def async_fetch_urlset(urls, download_dir, pbar=None, verbose=False):
     async with httpx.AsyncClient(http2=True) as session:
         #await asyncio.gather(*[fetch(session, url) for url in urls])
         ws = stream.repeat(session)
         xs = stream.zip(ws, stream.iterate(urls))
         ys = stream.starmap(xs, fetch, ordered=False, task_limit=10)
-        process_download = partial(process, download_dir=download_dir)
+        process_download = partial(process, download_dir=download_dir, pbar=pbar, verbose=verbose)
         zs = stream.map(ys, process_download)
         return await zs
 
-def fetch_urls(urls, download_dir):
-    return asyncio.run(async_fetch_urlset(urls, download_dir))
+def fetch_urls(urls, download_dir, pbar=None, verbose=False):
+    return asyncio.run(async_fetch_urlset(urls, download_dir, pbar, verbose))
 
