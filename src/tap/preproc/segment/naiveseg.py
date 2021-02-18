@@ -22,7 +22,10 @@ def estimate_pauses(audio_file, output_wav, start_time, stop_time, min_s=5., max
     segments each between `min_s` and `max_s` in duration.
 
     Suggested: `min_s` no smaller than `2.0`, for reasonable spaced segments,
-    either `5.0` (default) or `10.0`.
+    either `5.0` (default) or `10.0`. Since `min_s` is the gap to be left
+    between segments, `window_s` must be less than half the size of `min_s`.
+    [Note that `window_s` can be interpreted as the expected length of a pause,
+    and matches those observed in INA Speech Segmenter output.]
 
     Calculate the mean amplitude of each `window_s`-width bin, and select those
     at least `min_s` apart, until the maximum interval between the selected
@@ -47,10 +50,12 @@ def estimate_pauses(audio_file, output_wav, start_time, stop_time, min_s=5., max
     max_segment_len = total_frames
     n_new_segments = 0
     while max_segment_len > (max_s * sr):
+        # Assign each frame of audio to a mean amplitude bin
         digitised = np.digitize(abs_mono_audio, bins)
         rolling_avgs = moving_average(digitised, bin_frame_width)
         min_idx = rolling_avgs.argmin() # get index of lowest mean amplitude bin
-        new_seg_start = min_idx / sr
+        # min_idx is both an index of rolling avg window and segment start frame
+        new_seg_start = min_idx / sr # convert segment start unit from frame to s
         new_seg_stop = new_seg_start + window_s
         new_seg_stop_frame = new_seg_stop * sr
         # The moving average at index `i` corresponds to the interval `[i, i+w]`
@@ -60,8 +65,11 @@ def estimate_pauses(audio_file, output_wav, start_time, stop_time, min_s=5., max
         new_segment = (
             audio_file, new_output_wav, new_seg_start, new_seg_stop, "s", window_s
         )
+        # possibly not useful as audio_file|unit|window_s are repeated, new_output_wav
+        # is temporary, new_seg_start can be calculated from new_seg_stop
         segment_frames.append(new_segment)
-        # Exclude half a `window_s` either side of the end of the new segment interval
+        # Exclude half a `window_s` either side of the end of the new segment interval.
+        # `seg_avoid_on` precedes min_idx since `min_s < 2 * window_s` has been ensured
         seg_avoid_on = int(new_seg_stop_frame - min_sf // 2)
         seg_avoid_off = int(new_seg_stop_frame + min_sf // 2)
         # Mark the excluded interval as max. amplitude so it has a high mean and repeat
