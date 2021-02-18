@@ -1,6 +1,10 @@
 import soundfile as sf
 import numpy as np
 from .segment_extract import read_audio_section
+from tqdm import tqdm
+from sys import stderr
+
+__all__ = ["moving_average", "estimate_pauses"]
 
 def moving_average(values, window_size):
     """
@@ -14,7 +18,7 @@ def moving_average(values, window_size):
     ret[window_size:] = ret[window_size:] - ret[:-window_size]
     return ret[window_size - 1:] / window_size
 
-def estimate_pauses(audio_file, output_wav, start_time, stop_time, min_s=5., max_s=60., window_s=0.4):
+def estimate_pauses(audio_file, output_wav, start_time, stop_time, min_s=5., max_s=60., window_s=0.4, verbose=False):
     """
     In the absence of an intelligent segmentation from `inaSpeechSegmenter`,
     estimate where the pauses could reasonably be in the audio, returning
@@ -46,35 +50,60 @@ def estimate_pauses(audio_file, output_wav, start_time, stop_time, min_s=5., max
     abs_mono_audio[:bin_frame_width] = abs_mono_audio[-bin_frame_width:] = max_amp
     max_segment_len = total_frames
     n_new_segments = 0
+    segment_stops = []
+    pbar_goal = total_frames - min_sf # Track progress to reducing max. seg. to `min_s`
+    pbar = tqdm(desc=f"Estimating naive segmentation for {output_wav.name}", total=pbar_goal)
+    last_max_segment_len = max_segment_len # for tqdm updates
+    #if output_wav.name == "output_263.wav":
+    #    verbose = True
     while max_segment_len > (max_s * sr):
         digitised = np.digitize(abs_mono_audio, bins)
         rolling_avgs = moving_average(digitised, bin_frame_width)
         min_idx = rolling_avgs.argmin() # get index of lowest mean amplitude bin
+        #if min_idx == 26718:
+        #    breakpoint()
+        if verbose:
+            print(f"Trying new seg {min_idx}", file=stderr)
         new_seg_start = min_idx / sr
         new_seg_stop = new_seg_start + window_s
-        new_seg_stop_frame = new_seg_stop * sr
-        # The moving average at index `i` corresponds to the interval `[i, i+w]`
-        #min_idx_centre = min_idx + bin_frame_width // 2 # interval centre: `i + (w/2)`
-        new_output_filename = f"{output_wav.stem}_{n_new_segments}{output_wav.suffix}"
-        new_output_wav = output_wav.parent / new_output_filename 
-        new_segment = (
-            audio_file, new_output_wav, new_seg_start, new_seg_stop, "s", window_s
-        )
-        segment_frames.append(new_segment)
+        new_seg_stop_frame = int(new_seg_stop * sr)
+        # Ensure no existing segment plus/minus `min_sf` gets segmented
+        seg_dists_from_existing = np.abs(np.subtract(segment_stops, new_seg_stop_frame))
+        new_seg_is_too_near_existing_seg = np.any(seg_dists_from_existing < min_sf)
+        do_not_add_new_seg = new_seg_is_too_near_existing_seg #or new_seg_too_small
+        if not do_not_add_new_seg:
+            # The moving average at index `i` corresponds to the interval `[i, i+w]`
+            #min_idx_centre = min_idx + bin_frame_width // 2 # interval centre: `i + (w/2)`
+            new_output_filename = f"{output_wav.stem}_{n_new_segments}{output_wav.suffix}"
+            new_output_wav = output_wav.parent / new_output_filename 
+            new_segment = (
+                audio_file, new_output_wav, new_seg_start, new_seg_stop, "s", window_s
+            )
+            segment_frames.append(new_segment)
         # Exclude half a `window_s` either side of the end of the new segment interval
-        seg_avoid_on = int(new_seg_stop_frame - min_sf // 2)
-        seg_avoid_off = int(new_seg_stop_frame + min_sf // 2)
+        half_min_sf = min_sf // 2
+        # Clip to 0 after subtraction rather than checking if new stop > half_min_sf
+        seg_avoid_on = int(np.clip(new_seg_stop_frame - half_min_sf, 0, None))
+        seg_avoid_off = int(new_seg_stop_frame + half_min_sf)
         # Mark the excluded interval as max. amplitude so it has a high mean and repeat
         abs_mono_audio[seg_avoid_on:seg_avoid_off+1] = max_amp
-        segment_stops = sorted([(s[3] * sr) for s in segment_frames])
-        segment_lengths = np.diff([0, *segment_stops, total_frames])
-        print(f" {segment_stops=}")
-        print(f" {segment_lengths=}")
-        max_segment_len = segment_lengths.max() # convert max. from frames to s
-        print(f" - Identified {min_idx=} "
-              f"({new_seg_start} seconds of {total_frames / sr})"
-              f" - new {max_segment_len=}")
-    print(f"Successfully estimated a segmentation of {len(segment_frames)} splits,"
-          f" max. segment length {max_segment_len / sr} seconds")
-    breakpoint()
+        if not do_not_add_new_seg:
+            segment_stops = sorted([(s[3] * sr) for s in segment_frames])
+            segment_lengths = np.diff([0, *segment_stops, total_frames])
+            if verbose:
+                print(f" {segment_stops=}", file=stderr)
+                print(f" {segment_lengths=}", file=stderr)
+            reduction_since_last_seg = np.clip(last_max_segment_len - max_segment_len, 0, None)
+            #update_by = reduction_since_last_seg
+            pbar.update(reduction_since_last_seg)
+            last_max_segment_len = max_segment_len
+            max_segment_len = segment_lengths.max() # convert max. from frames to s
+            if verbose:
+                print(f" - Identified {min_idx=} "
+                      f"({new_seg_start:.2f} seconds of {total_frames / sr:.2f})"
+                      f" - new {max_segment_len=} ({max_segment_len/sr:.2f} seconds)", file=stderr)
+    pbar.update(pbar.total - pbar.n) # Finish
+    if verbose:
+        print(f"Successfully estimated a segmentation of {len(segment_frames)} splits,"
+                f" max. segment length {max_segment_len / sr:.2f} seconds", file=stderr)
     return segment_frames
