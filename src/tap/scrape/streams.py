@@ -113,8 +113,7 @@ class Stream(Episode):
         self.stream_urls = urlset
         self.pull()
         self.preprocess()
-        breakpoint()
-        self.transcribe()
+        #self.transcribe()
 
     @property
     def stream_urls(self):

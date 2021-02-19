@@ -7,10 +7,10 @@ from glob import glob
 from itertools import count
 from functools import partial
 from .segment_extract import read_audio_section, extract_as_clip
-from .naiveseg import estimate_pauses
+from .naiveseg import pause_estimator#, estimate_pauses
 from ...share.audio import get_track_length
 from ...share.pandas import insert_replacement_rows
-from ...share.multiproc import batch_multiprocess
+from ...share.multiproc import batch_multiprocess, batch_multiprocess_with_dict_updates
 
 __all__ = [
     "run_inaseg",
@@ -168,7 +168,7 @@ def segment_intervals_from_ranges(
         partial(extract_as_clip, *arg_tuple) for arg_tuple in extraction_params
     ]
     if not dry_run:
-        batch_multiprocess(func_list)
+        batch_multiprocess(func_list, tqdm_desc="Segmenting intervals from INA ranges")
     # Just revert the final row's unit to seconds rather than handling in pandas
     final_params = extraction_params[-1]
     if final_params[-1] == "frames":
@@ -179,6 +179,52 @@ def segment_intervals_from_ranges(
     )
     return segment_time_df
 
+
+def batch_estimate_pauses_callback_wrapper(row_idx, *args):
+    estimated_intra_segment_intervals = estimate_pauses(*args)
+    return {row_idx: estimated_intra_segment_intervals}
+
+def reorder_and_rename_segment_replacements(replacements_dict):
+    """
+    Update the input dictionary in-place: reorder the replacement
+    values by the start time (the third entry) and 
+    """
+    zf = len(str(max(map(len, replacements_dict.values()))))
+    for row_idx, replacement_rows in replacements_dict.items():
+        # A single replacement row doesn't need reordering
+        if len(replacement_rows) > 1:
+            # Sort replacement rows in chronological order
+            replacement_rows = sorted(replacement_rows, key=get_start_time)
+            replacements_dict[row_idx] = rename_by_order(replacement_rows, zf)
+
+############ Helper functions for reorder_and_rename_segment_replacements ##########
+
+def get_start_time(replacement_row):
+    return replacement_row[2] # becomes the 'start' column of the DataFrame
+
+def rename_by_order(rows, zfill_len):
+    """
+    Modify the 2nd item in each `row` tuple, given `rows` (a list of tuples).
+    """
+    for i, row_tuple in enumerate(rows):
+        new_filename = renumber_filename(row_tuple[1], i, zfill_len)
+        rows[i] = tuple(x if j != 1 else new_filename for j,x in enumerate(row_tuple))
+    return rows # Note: it's modified in-place too
+
+def renumber_filename(filename, i, zfill_len):
+    """
+    Discard the numbered part of the filename and renumber according to its
+    new position in the list of replacement rows to be inserted (passed as `i`).
+    E.g. from ".../segmented/output_035_6.wav" to ".../segmented/output_035_012.wav"
+    when `i` = 12 and `zfill` = 3.
+    """
+    filename_prefix = filename.stem.rpartition("_")[0]
+    new_number = str(i).zfill(zfill_len)
+    new_filename = f"{filename_prefix}_{new_number}{filename.suffix}"
+    #print(f"Renaming {filename.name} as {new_filename} ({i}:{zfill_len} -> {new_number})")
+    return filename.parent / new_filename
+
+####################################################################################
 
 def segment_pauses_and_spread(
     input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=DEFAULT_MIN_S, max_s=60.
@@ -219,21 +265,28 @@ def segment_pauses_and_spread(
     #segment_intervals["from_ina"] = True
     surplus_duration = (segment_intervals.stop - segment_intervals.start).gt(max_s)
     if surplus_duration.any():
-        segment_interval_replacements = {}
         # Estimate a finer segmentation by estimating pauses based on amplitude minima
         surplus_duration_intervals = segment_intervals[surplus_duration]
+        pause_estimator_funcs = []
+        # Wrap returned value as a dict to update `segment_interval_replacements` with
+        #pause_estimator = lambda i, *args: {i: estimate_pauses(*args)}
         for row_idx, row in surplus_duration_intervals.iterrows():
             assert row.unit == "s" # All frame units must be replaced by now
-            estimated_intra_segment_intervals = estimate_pauses(
-                row.input, row.output, row.start, row.stop, min_s, max_s
-            )
-            segment_interval_replacements.update(
-                {row_idx: estimated_intra_segment_intervals}
-            )
-        breakpoint()
+            estim_params = row.input, row.output, row.start, row.stop, min_s, max_s
+            f = partial(pause_estimator, row_idx, *estim_params)
+            pause_estimator_funcs.append(f)
+        # Multiprocess on all cores, updating `segment_interval_replacements` dict with
+        # each returned dict entry of `{row_idx: estimate_pauses(...)}`
+        segment_interval_replacements = batch_multiprocess_with_dict_updates(
+            function_list=pause_estimator_funcs,
+            tqdm_desc="Re-segmenting the oversized segments naively",
+        )
+        # Reorder based on segment time, and rename output wav with a zfilled count
+        reorder_and_rename_segment_replacements(segment_interval_replacements)
         segment_intervals = insert_replacement_rows(
             segment_intervals, segment_interval_replacements
         )
+        # TODO: ensure rows are being inserted in correct order?
         # TODO: replace file names (is it strictly necessary?)
         # reassign_output_filenames_by_index(segment_intervals)
     return segment_intervals, segmented_out_dir

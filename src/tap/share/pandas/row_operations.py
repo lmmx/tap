@@ -15,7 +15,12 @@ def insert_replacement_rows(df, replacement_rows_dict):
     """
     for row_idx, replacement_rows in replacement_rows_dict.items():
         n_rows_plus_2 = len(replacement_rows) + 2
-        row_idx_range = np.linspace(row_idx, row_idx+1, n_rows_plus_2[1:-1])
+        row_idx_range = np.linspace(row_idx, row_idx+1, n_rows_plus_2)[1:-1]
         for new_idx, replacement_row in zip(row_idx_range, replacement_rows):
-            df.loc[new_idx] = replacement_row
+            # Gives ValueError: cannot set a row with mismatched columns
+            df.loc[new_idx] = pd.Series(
+                dict(
+                    zip(df.columns.to_list(), replacement_row)
+                )
+            )
     return df.drop(index=[*replacement_rows_dict]).sort_index().reset_index(drop=True)
