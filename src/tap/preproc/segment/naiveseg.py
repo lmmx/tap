@@ -100,18 +100,19 @@ def estimate_pauses(
         do_not_add_new_seg = new_seg_is_too_near_existing_seg  # or new_seg_too_small
         if not do_not_add_new_seg:
             # No need to zfill the `n_new_segments` count as it's rewritten afterwards
+            # Increment `n_new_segments` by 1 so the initial segment can be the zero
             new_output_filename = (
-                f"{output_wav.stem}_{n_new_segments}{output_wav.suffix}"
+                f"{output_wav.stem}_{n_new_segments+1}{output_wav.suffix}"
             )
             new_output_wav = output_wav.parent / new_output_filename
-            new_segment = (
+            new_segment = [
                 audio_file,
                 new_output_wav,
                 new_seg_start,
                 new_seg_stop,
                 "s",
                 window_s,
-            )
+            ]
             # redundant as audio_file|unit|window_s are repeated, new_output_wav
             # is temporary, new_seg_start can be calculated from new_seg_stop
             segment_frames.append(new_segment)
@@ -126,6 +127,7 @@ def estimate_pauses(
         abs_mono_audio[seg_avoid_on : seg_avoid_off + 1] = max_amp
         if not do_not_add_new_seg:
             segment_stops = sorted([(s[3] * sr) for s in segment_frames])
+            # Note: the first and last segment are presumed (will be added afterward)
             segment_lengths = np.diff([0, *segment_stops, total_frames])
             if verbose:
                 print(f" {segment_stops=}", file=stderr)
@@ -153,4 +155,38 @@ def estimate_pauses(
             f" max. segment length {max_segment_len / sr:.2f} seconds",
             file=stderr,
         )
+    for seg_i, segment in enumerate(segment_frames):
+        # Offset each time by start_time to go from relative to absolute count
+        for j in range(2, 4): # positions 2 and 3 correspond to the
+            segment[j] += start_time
+        segment_frames[seg_i] = tuple(segment) # Finally change to immutable tuple
+    # Lastly, add the start and end (simple!)
+    if not do_not_add_new_seg:
+        # No need to zfill the `n_new_segments` count as it's rewritten afterwards
+        init_fname, final_fname = (
+            f"{output_wav.stem}_{n}{output_wav.suffix}"
+            for n in (0, n_new_segments+1)
+        )
+        extrema_outputs = (
+            output_wav.parent / fname
+            for fname in [init_fname, final_fname]
+        )
+        min_new_start = min(x[2] for x in segment_frames)
+        max_new_stop = max(x[3] for x in segment_frames)
+        extrema_times = (start_time, min_new_start), (max_new_stop, stop_time)
+        init_segment, final_segment = (
+            [
+                audio_file,
+                out_name,
+                t_start,
+                t_stop,
+                "s",
+                window_s,
+            ]
+            for out_name, (t_start, t_stop) in zip(extrema_outputs, extrema_times)
+        )
+        # redundant as audio_file|unit|window_s are repeated, new_output_wav
+        # is temporary, new_seg_start can be calculated from new_seg_stop
+        segment_frames.insert(0, init_segment)
+        segment_frames.append(final_segment)
     return segment_frames

@@ -180,24 +180,41 @@ def segment_intervals_from_ranges(
     return segment_time_df
 
 
-def batch_estimate_pauses_callback_wrapper(row_idx, *args):
-    estimated_intra_segment_intervals = estimate_pauses(*args)
-    return {row_idx: estimated_intra_segment_intervals}
-
-def reorder_and_rename_segment_replacements(replacements_dict):
+def reorder_rename_segment_replacements_as_intervals(replacements_dict):
     """
     Update the input dictionary in-place: reorder the replacement
     values by the start time (the third entry) and 
     """
     zf = len(str(max(map(len, replacements_dict.values()))))
     for row_idx, replacement_rows in replacements_dict.items():
-        # A single replacement row doesn't need reordering
-        if len(replacement_rows) > 1:
+        # A single replacement row doesn't need reordering, since initial and
+        # final intervals (NB: not segment ranges) already added, a single
+        # replacement row will have length 3
+        if len(replacement_rows) > 3: # initial and final intervals already added
             # Sort replacement rows in chronological order
             replacement_rows = sorted(replacement_rows, key=get_start_time)
-            replacements_dict[row_idx] = rename_by_order(replacement_rows, zf)
+        # The `replacement_rows` are capped by init/final intervals, which must
+        # be merged with the (2nd and penultimate) contiguous segment ranges
+        # All replacement rows between first and last are made into intervals
+        n_replacement_rows = len(replacement_rows)
+        for row_j, row in enumerate(replacement_rows):
+            replacement_rows = list(map(list, replacement_rows))
+            if row_j == 0:
+                # Pop the first interval and only keep its start time
+                # thus merging its interval range with the first segment
+                replacement_rows[0][2] = replacement_rows.pop(0)[2]
+            elif row_j == n_replacement_rows - 2:
+                # Pop the final interval and only keep its stop time
+                # thus merging its interval range with the last segment
+                replacement_rows[-1][3] = replacement_rows.pop()[3]
+                break # Avoid IndexError from pre-indexed iterator
+            else:
+                # The current segment interval starts where the previous stopped
+                replacement_rows[row_j][2] = replacement_rows[row_j-1][3]
+        # Lastly, rename the output filenames to reflect the sorted order
+        replacements_dict[row_idx] = rename_by_order(replacement_rows, zf)
 
-############ Helper functions for reorder_and_rename_segment_replacements ##########
+##### Helper functions for reorder_rename_segment_replacements_as_intervals #####
 
 def get_start_time(replacement_row):
     return replacement_row[2] # becomes the 'start' column of the DataFrame
@@ -207,7 +224,8 @@ def rename_by_order(rows, zfill_len):
     Modify the 2nd item in each `row` tuple, given `rows` (a list of tuples).
     """
     for i, row_tuple in enumerate(rows):
-        new_filename = renumber_filename(row_tuple[1], i, zfill_len)
+        # Renumber the files incrementing by 1 so the initial segment can be zero
+        new_filename = renumber_filename(row_tuple[1], i+1, zfill_len)
         rows[i] = tuple(x if j != 1 else new_filename for j,x in enumerate(row_tuple))
     return rows # Note: it's modified in-place too
 
@@ -262,11 +280,13 @@ def segment_pauses_and_spread(
     segment_intervals = segment_intervals_from_ranges(
         input_wav, pause_segments, segmented_out_dir, min_s=min_s, dry_run=dry_run,
     )
+    original_sis = segment_intervals.copy()
     #segment_intervals["from_ina"] = True
     surplus_duration = (segment_intervals.stop - segment_intervals.start).gt(max_s)
     if surplus_duration.any():
         # Estimate a finer segmentation by estimating pauses based on amplitude minima
         surplus_duration_intervals = segment_intervals[surplus_duration]
+        sdi = surplus_duration.copy()
         pause_estimator_funcs = []
         # Wrap returned value as a dict to update `segment_interval_replacements` with
         #pause_estimator = lambda i, *args: {i: estimate_pauses(*args)}
@@ -281,15 +301,22 @@ def segment_pauses_and_spread(
             function_list=pause_estimator_funcs,
             tqdm_desc="Re-segmenting the oversized segments naively",
         )
-        # Reorder based on segment time, and rename output wav with a zfilled count
-        reorder_and_rename_segment_replacements(segment_interval_replacements)
+        ############### DEBUGGING
+        unsorted_sirs = segment_interval_replacements.copy()
+        unzipped_list_of_tuples = [x[0] for x in unsorted_sirs.values()]
+        list_of_col_val_vecs = list(zip(*unzipped_list_of_tuples))
+        column_names = segment_intervals.columns.to_list()
+        unsorted_segment_intervals = pd.DataFrame(dict(zip(column_names, list_of_col_val_vecs)))
+        ############### ---------
+        # Reorder by time, rename output wav with zfilled count, convert to intervals
+        reorder_rename_segment_replacements_as_intervals(segment_interval_replacements)
+        # Calculate interval ranges that correspond to the new segmentation ranges
         segment_intervals = insert_replacement_rows(
             segment_intervals, segment_interval_replacements
         )
         # TODO: ensure rows are being inserted in correct order?
-        # TODO: replace file names (is it strictly necessary?)
         # reassign_output_filenames_by_index(segment_intervals)
-    return segment_intervals, segmented_out_dir
+    return segment_intervals, segmented_out_dir, sdi, original_sis, unsorted_segment_intervals
 
 
 # max_break = breaks[breaks.duration.eq(breaks.duration.max())]

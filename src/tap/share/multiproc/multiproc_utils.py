@@ -35,7 +35,7 @@ def update_dict_and_pbar(new_entry, callback_dict, callback_pbar=None):
 
 def batch_multiprocess_with_dict_updates(
     function_list, pool_results_dict=None, n_cores=mp.cpu_count(), show_progress=True,
-    tqdm_desc=None,
+    tqdm_desc=None, sequential=False,
 ):
     """
     Run a list of functions on `n_cores` (default: all CPU cores),
@@ -45,7 +45,8 @@ def batch_multiprocess_with_dict_updates(
     no_preexisting_dict = pool_results_dict is None
     if no_preexisting_dict:
         pool_results_dict = {}
-    pool = Pool(processes=n_cores)
+    if not sequential:
+        pool = Pool(processes=n_cores)
     if show_progress:
         pbar = tqdm(total=len(function_list), desc=tqdm_desc)
     else:
@@ -56,13 +57,16 @@ def batch_multiprocess_with_dict_updates(
     for func_batch in iterator:
         procs = []
         for f in func_batch:
-            pool.apply_async(func=f, callback=update_pool_results)
-    pool.close()
-    pool.join()
+            if sequential:
+                update_pool_results(f())
+            else:
+                pool.apply_async(func=f, callback=update_pool_results)
+    if not sequential:
+        pool.close()
+        pool.join()
     # if pool_results_dict was supplied, it's been updated, otherwise return new dict
     if no_preexisting_dict:
         return pool_results_dict
-
 
 #def store_dict_entry(dict_entry, result_dict):
 #    result_dict.update(dict_entry)

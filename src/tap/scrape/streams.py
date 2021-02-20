@@ -113,7 +113,7 @@ class Stream(Episode):
         self.stream_urls = urlset
         self.pull()
         self.preprocess()
-        #self.transcribe()
+        self.transcribe()
 
     @property
     def stream_urls(self):
@@ -170,7 +170,7 @@ class Stream(Episode):
         if not transcoded_wav.exists():
             gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
             transcoded_wav = mp4_to_wav(gathered_mp4)
-        self.transcript_timings, self.segment_dir = segment_pauses_and_spread(transcoded_wav)
+        self.transcript_timings, self.segment_dir, self.surplus_duration_intervals, self.original_sis, self.unsorted_segment_intervals = segment_pauses_and_spread(transcoded_wav)
 
     def transcribe(self):
         files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
