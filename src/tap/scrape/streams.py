@@ -169,7 +169,7 @@ class Stream(Episode):
 
         Any kwargs passed as `opts` are passed into `segment_pauses_and_spread`
         (from the `tap.preproc.segment.inaseg` module). These are by default:
-        `csv_out_dir=None`, `segmented_out_dir=None`, `min_s=5.0`, `max_s=60.0`.
+        `csv_out_dir=None`, `segmented_out_dir=None`, `min_s=5.0`, `max_s=50.0`.
         The latter pair control the minimum and maximum segment length (if you
         encounter out of memory errors while running Wav2Vec2, reduce `max_s`,
         which will cause further segmenting at the audio's minimum amplitude
@@ -187,9 +187,10 @@ class Stream(Episode):
         print(f"Transcribing {len(files_to_transcribe)} segmented audio files", file=stderr)
         transcript_dir = self.segment_dir / "transcripts"
         transcript_dir.mkdir(exist_ok=True)
+        #self.transcripts = []
         for f in tqdm(files_to_transcribe):
             transcript = transcribe_audio_file(f, model_to_load)
             transcript_filename = Path(f).stem + ".txt"
             with open(transcript_dir / transcript_filename, "w") as fh:
                 fh.write(transcript+"\n")
-        #self.transcripts = [*map(transcribe_audio_file, files_to_transcribe)]
+            #self.transcripts.append(transcript)

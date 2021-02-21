@@ -16,7 +16,7 @@ def load_stream(
     Create a `Stream` for a specific episode of a radio program from the named arguments
     and pass `stream_opts` through (these include `transcribe=False` to determine whether
     the `Stream.transcribe` method is called upon initialisation, `min_s=5.`, and
-    `max_s=60.` which control the min. and max. audio segment length).
+    `max_s=50.` which control the min. and max. audio segment length).
 
     `ymd` and `ymd_ago` are options to specify either an absolute
     or relative date as `(year, month, day)` tuple of 3 integers in both cases.

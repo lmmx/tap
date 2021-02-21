@@ -43,7 +43,7 @@ the audio ready for transcription, which we kick off immediately:
 
 ```py
 from tap.scrape import load_stream
-stream = load_stream(transcribe=True, max_s=40.)
+stream = load_stream(transcribe=True)
 ```
 
 - Current default program for `load_stream` is the BBC R4 Today programme.
@@ -57,7 +57,7 @@ stream = load_stream(transcribe=True, max_s=40.)
 - The value for `max_s` is crucial to avoiding an out of memory error when running the model:
   the audio file is first split up based on pauses between speakers, but the `max_s` value (a float)
   sets the maximum number of seconds between the segments (i.e. maximum duration of audio clips
-  to be transcribed). I recommend between 40 and 60 seconds from my experience.
+  to be transcribed). Default is 50 seconds based on my experience.
   
 The `load_stream` function initialises a `Stream` object, and upon doing so the
 `Stream.pull()`, `Stream.preprocess()`, and `Stream.transcribe()` methods are called

@@ -188,7 +188,7 @@ def segment_intervals_from_ranges(
         # each returned dict entry of `{row_idx: estimate_pauses(...)}`
         segment_interval_replacements = batch_multiprocess_with_dict_updates(
             function_list=pause_estimator_funcs,
-            tqdm_desc=f"Segmenting the oversized segments from {min_s}s to {max_s}s",
+            tqdm_desc=f"Segmenting audio into clips between {min_s}s and {max_s}s",
         )
         # Reorder by time, rename output wav with zfilled count, convert to intervals
         reorder_rename_segment_replacements_as_intervals(segment_interval_replacements)
@@ -275,7 +275,7 @@ def renumber_filename(filename, i, zfill_len):
 ####################################################################################
 
 def segment_pauses_and_spread(
-    input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=5., max_s=60.
+    input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=5., max_s=50.
 ):
     """
     Calculate the audio segmentation of the `input_wav` file by calling
