@@ -21,8 +21,8 @@ def moving_average(values, window_size):
 
 
 def pause_estimator(row_idx, *args):
-    d = {row_idx: estimate_pauses(*args)}
-    return d
+    pauses = estimate_pauses(*args)
+    return {row_idx: pauses} if pauses else {}
 
 
 def estimate_pauses(
@@ -161,7 +161,10 @@ def estimate_pauses(
             segment[j] += start_time
         segment_frames[seg_i] = tuple(segment) # Finally change to immutable tuple
     # Lastly, add the start and end (simple!)
-    if not do_not_add_new_seg:
+    if len(segment_frames) == 1:
+        # Do not permit single segment result (it's equivalent to what it would replace)
+        segment_frames = []
+    elif not do_not_add_new_seg:
         # No need to zfill the `n_new_segments` count as it's rewritten afterwards
         init_fname, final_fname = (
             f"{output_wav.stem}_{n}{output_wav.suffix}"

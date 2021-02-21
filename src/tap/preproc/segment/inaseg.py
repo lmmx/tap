@@ -23,8 +23,6 @@ __all__ = [
     "segment_pauses_and_spread",
 ]
 
-DEFAULT_MIN_S = 5.0
-
 
 def run_inaseg(input_wav, csv_out_dir):
     # load neural network into memory, may last few seconds
@@ -119,7 +117,7 @@ def update_wav_counter(clip_counter, zfill_len, out_dir, wav_stem, wav_suff):
 
 
 def segment_intervals_from_ranges(
-    input_wav, segment_range_df, segmented_out_dir, min_s=DEFAULT_MIN_S, dry_run=False,
+    input_wav, segment_range_df, segmented_out_dir, min_s, max_s, dry_run=False,
 ):
     """
     Segmentation of files from input file. The algorithm proceeds row by row through the
@@ -164,19 +162,47 @@ def segment_intervals_from_ranges(
         )  # scale start of last clip from seconds to frames
         final_params = (fin_in, fin_out, new_fin_start, total_frames, fin_unit)
         extraction_params[-1] = final_params  # reassign the final entry
-    func_list = [
-        partial(extract_as_clip, *arg_tuple) for arg_tuple in extraction_params
-    ]
-    if not dry_run:
-        batch_multiprocess(func_list, tqdm_desc="Segmenting intervals from INA ranges")
     # Just revert the final row's unit to seconds rather than handling in pandas
     final_params = extraction_params[-1]
     if final_params[-1] == "frames":
         s_fin_params = (*final_params[:2], final_params[2]/sr, final_params[3]/sr, "s")
         extraction_params[-1] = s_fin_params
+    # Now switch to pandas and handle the naive segmentation pass to reduce to `max_s`
     segment_time_df = pd.DataFrame(
         dict(zip("input output start stop unit".split(), zip(*extraction_params)))
     )
+    surplus_duration = (segment_time_df.stop - segment_time_df.start).gt(max_s)
+    if surplus_duration.any():
+        # Estimate a finer segmentation by estimating pauses based on amplitude minima
+        surplus_duration_intervals = segment_time_df[surplus_duration]
+        sdi = surplus_duration.copy()
+        pause_estimator_funcs = []
+        # Wrap returned value as a dict to update `segment_interval_replacements` with
+        #pause_estimator = lambda i, *args: {i: estimate_pauses(*args)}
+        for row_idx, row in surplus_duration_intervals.iterrows():
+            assert row.unit == "s" # All frame units must be replaced by now
+            estim_params = row.input, row.output, row.start, row.stop, min_s, max_s
+            f = partial(pause_estimator, row_idx, *estim_params)
+            pause_estimator_funcs.append(f)
+        # Multiprocess on all cores, updating `segment_interval_replacements` dict with
+        # each returned dict entry of `{row_idx: estimate_pauses(...)}`
+        segment_interval_replacements = batch_multiprocess_with_dict_updates(
+            function_list=pause_estimator_funcs,
+            tqdm_desc=f"Segmenting the oversized segments from {min_s}s to {max_s}s",
+        )
+        # Reorder by time, rename output wav with zfilled count, convert to intervals
+        reorder_rename_segment_replacements_as_intervals(segment_interval_replacements)
+        # Calculate interval ranges that correspond to the new segmentation ranges
+        segment_time_df = insert_replacement_rows(
+            segment_time_df, segment_interval_replacements
+        )
+    # Re-assign extraction params with modifications indicating further segmentations
+    extraction_params = [*map(tuple, segment_time_df.itertuples(index=False))]
+    func_list = [
+        partial(extract_as_clip, *arg_tuple) for arg_tuple in extraction_params
+    ]
+    if not dry_run:
+        batch_multiprocess(func_list, tqdm_desc="Saving segment interval WAVs")
     return segment_time_df
 
 
@@ -186,6 +212,7 @@ def reorder_rename_segment_replacements_as_intervals(replacements_dict):
     values by the start time (the third entry) and 
     """
     zf = len(str(max(map(len, replacements_dict.values()))))
+    unnecessary_replacements_idx = []
     for row_idx, replacement_rows in replacements_dict.items():
         # A single replacement row doesn't need reordering, since initial and
         # final intervals (NB: not segment ranges) already added, a single
@@ -193,6 +220,9 @@ def reorder_rename_segment_replacements_as_intervals(replacements_dict):
         if len(replacement_rows) > 3: # initial and final intervals already added
             # Sort replacement rows in chronological order
             replacement_rows = sorted(replacement_rows, key=get_start_time)
+        else:
+            unnecessary_replacements_idx.append(row_idx)
+            continue
         # The `replacement_rows` are capped by init/final intervals, which must
         # be merged with the (2nd and penultimate) contiguous segment ranges
         # All replacement rows between first and last are made into intervals
@@ -245,7 +275,7 @@ def renumber_filename(filename, i, zfill_len):
 ####################################################################################
 
 def segment_pauses_and_spread(
-    input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=DEFAULT_MIN_S, max_s=60.
+    input_wav, csv_out_dir=None, segmented_out_dir=None, min_s=5., max_s=60.
 ):
     """
     Calculate the audio segmentation of the `input_wav` file by calling
@@ -278,45 +308,9 @@ def segment_pauses_and_spread(
     pause_segments = get_segment_times(csv_df, breaks=True, no_energy=True)
     # Create segmented output WAV files using all cores
     segment_intervals = segment_intervals_from_ranges(
-        input_wav, pause_segments, segmented_out_dir, min_s=min_s, dry_run=dry_run,
+        input_wav, pause_segments, segmented_out_dir, min_s=min_s, max_s=max_s, dry_run=dry_run,
     )
-    original_sis = segment_intervals.copy()
-    #segment_intervals["from_ina"] = True
-    surplus_duration = (segment_intervals.stop - segment_intervals.start).gt(max_s)
-    if surplus_duration.any():
-        # Estimate a finer segmentation by estimating pauses based on amplitude minima
-        surplus_duration_intervals = segment_intervals[surplus_duration]
-        sdi = surplus_duration.copy()
-        pause_estimator_funcs = []
-        # Wrap returned value as a dict to update `segment_interval_replacements` with
-        #pause_estimator = lambda i, *args: {i: estimate_pauses(*args)}
-        for row_idx, row in surplus_duration_intervals.iterrows():
-            assert row.unit == "s" # All frame units must be replaced by now
-            estim_params = row.input, row.output, row.start, row.stop, min_s, max_s
-            f = partial(pause_estimator, row_idx, *estim_params)
-            pause_estimator_funcs.append(f)
-        # Multiprocess on all cores, updating `segment_interval_replacements` dict with
-        # each returned dict entry of `{row_idx: estimate_pauses(...)}`
-        segment_interval_replacements = batch_multiprocess_with_dict_updates(
-            function_list=pause_estimator_funcs,
-            tqdm_desc="Re-segmenting the oversized segments naively",
-        )
-        ############### DEBUGGING
-        unsorted_sirs = segment_interval_replacements.copy()
-        unzipped_list_of_tuples = [x[0] for x in unsorted_sirs.values()]
-        list_of_col_val_vecs = list(zip(*unzipped_list_of_tuples))
-        column_names = segment_intervals.columns.to_list()
-        unsorted_segment_intervals = pd.DataFrame(dict(zip(column_names, list_of_col_val_vecs)))
-        ############### ---------
-        # Reorder by time, rename output wav with zfilled count, convert to intervals
-        reorder_rename_segment_replacements_as_intervals(segment_interval_replacements)
-        # Calculate interval ranges that correspond to the new segmentation ranges
-        segment_intervals = insert_replacement_rows(
-            segment_intervals, segment_interval_replacements
-        )
-        # TODO: ensure rows are being inserted in correct order?
-        # reassign_output_filenames_by_index(segment_intervals)
-    return segment_intervals, segmented_out_dir, sdi, original_sis, unsorted_segment_intervals
+    return segment_intervals, segmented_out_dir
 
 
 # max_break = breaks[breaks.duration.eq(breaks.duration.max())]

@@ -39,19 +39,25 @@ pip install -e . # or `pip install .` for a fixed installation
 
 For a given program, we can make a `Stream` object with its
 URLs for the day's episode, download ("pull"), and segment ("preprocess")
-the audio ready for transcription:
+the audio ready for transcription, which we kick off immediately:
 
 ```py
 from tap.scrape import load_stream
-stream = load_stream()
+stream = load_stream(transcribe=True, max_s=40.)
 ```
 
-- Current default for `load_stream` is the BBC R4 Today programme.
+- Current default program for `load_stream` is the BBC R4 Today programme.
+- Current default value of the `transcribe` argument for `load_stream` is `False`. Setting it to
+  `True` will initiate the transcription immediately upon creating the stream object.
 - Currently this requires manual provision of the final MP4 segment from inspecting the browser's
   network console (TODO: automate with Selenium)
 - To get its URLs for the day before yesterday, pass the `ymd_ago` argument (a tuple)
   e.g. `load_stream(ymd_ago=(0,0,-2))` or pass the `ymd` argument [either a `datetime.date` or an integer tuple
   `(y,m,d)`] for an absolute date e.g. `load_stream(ymd=(2021,2,8))`
+- The value for `max_s` is crucial to avoiding an out of memory error when running the model:
+  the audio file is first split up based on pauses between speakers, but the `max_s` value (a float)
+  sets the maximum number of seconds between the segments (i.e. maximum duration of audio clips
+  to be transcribed). I recommend between 40 and 60 seconds from my experience.
   
 The `load_stream` function initialises a `Stream` object, and upon doing so the
 `Stream.pull()`, `Stream.preprocess()`, and `Stream.transcribe()` methods are called

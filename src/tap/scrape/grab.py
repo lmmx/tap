@@ -10,8 +10,18 @@ __all__ = ["load_stream"]
 
 
 def load_stream(
-    channel="bbc", station="r4", program="today", ymd=None, ymd_ago=None
+    channel="bbc", station="r4", program="today", ymd=None, ymd_ago=None, **stream_opts
 ):
+    """
+    Create a `Stream` for a specific episode of a radio program from the named arguments
+    and pass `stream_opts` through (these include `transcribe=False` to determine whether
+    the `Stream.transcribe` method is called upon initialisation, `min_s=5.`, and
+    `max_s=60.` which control the min. and max. audio segment length).
+
+    `ymd` and `ymd_ago` are options to specify either an absolute
+    or relative date as `(year, month, day)` tuple of 3 integers in both cases.
+    `ymd` defaults to today's date and `ymd_ago` defaults to `(0,0,0)`.
+    """
     ymd = parse_abs_from_rel_date(ymd, ymd_ago)
     cal_subpath = cal_path(ymd)
 
@@ -39,5 +49,5 @@ def load_stream(
     urlset = construct_urlset(last_file_num_i, url_prefix, fname_prefix, fname_sep, url_suffix)
     # for i in range(1, last_file_num+1):
     #    url_i = construct_url(i)
-    stream = Stream(channel, station, program, ymd, urlset)
+    stream = Stream(channel, station, program, ymd, urlset, **stream_opts)
     return stream

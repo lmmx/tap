@@ -108,12 +108,13 @@ class Episode(Program):
         return self.__episode__
 
 class Stream(Episode):
-    def __init__(self, channel, station, program, date, urlset):
+    def __init__(self, channel, station, program, date, urlset, transcribe=False, **preproc_opts):
         super().__init__(channel, station, program, date)
         self.stream_urls = urlset
         self.pull()
-        self.preprocess()
-        self.transcribe()
+        self.preprocess(**preproc_opts)
+        if transcribe:
+            self.transcribe() # Can also pass in model_to_load
 
     @property
     def stream_urls(self):
@@ -161,25 +162,34 @@ class Stream(Episode):
             print("Done")
         return
 
-    def preprocess(self):
+    def preprocess(self, **opts):
         """
         Gather stream files into a single MP4 file, convert to WAV, segment it
         at pauses in the audio, and create smaller WAV files accordingly.
+
+        Any kwargs passed as `opts` are passed into `segment_pauses_and_spread`
+        (from the `tap.preproc.segment.inaseg` module). These are by default:
+        `csv_out_dir=None`, `segmented_out_dir=None`, `min_s=5.0`, `max_s=60.0`.
+        The latter pair control the minimum and maximum segment length (if you
+        encounter out of memory errors while running Wav2Vec2, reduce `max_s`,
+        which will cause further segmenting at the audio's minimum amplitude
+        points to bring each segment below this limit).
         """
         transcoded_wav = self.episode_dir / "output.wav"
         if not transcoded_wav.exists():
             gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
             transcoded_wav = mp4_to_wav(gathered_mp4)
-        self.transcript_timings, self.segment_dir, self.surplus_duration_intervals, self.original_sis, self.unsorted_segment_intervals = segment_pauses_and_spread(transcoded_wav)
+        self.transcript_timings, self.segment_dir = segment_pauses_and_spread(transcoded_wav, **opts)
 
-    def transcribe(self):
+    def transcribe(self, model_to_load="facebook/wav2vec2-base-960h"):
         files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
         # Setting `.transcripts` attr adds `transcript` column to `.transcript_timings`
         print(f"Transcribing {len(files_to_transcribe)} segmented audio files", file=stderr)
         transcript_dir = self.segment_dir / "transcripts"
         transcript_dir.mkdir(exist_ok=True)
         for f in tqdm(files_to_transcribe):
-            transcript = transcribe_audio_file(f)
-            with open(transcript_dir / f"{f.stem}.txt", "w") as f:
-                f.write(transcript)
+            transcript = transcribe_audio_file(f, model_to_load)
+            transcript_filename = Path(f).stem + ".txt"
+            with open(transcript_dir / transcript_filename, "w") as fh:
+                fh.write(transcript+"\n")
         #self.transcripts = [*map(transcribe_audio_file, files_to_transcribe)]
