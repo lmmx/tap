@@ -8,7 +8,7 @@
 The pre-requisites for installation are:
 
 - Python 3
-- `tensorflow-gpu`, or `tensorflow` for CPU-only (required for speech segmentation, not recommended
+- `tensorflow-gpu`, or `tensorflow` for CPU-only (required for speech segmentation, recommended
   to install via pip)
 
 Dependencies are specified in `requirements.txt`:
@@ -35,7 +35,7 @@ pip install -e . # or `pip install .` for a fixed installation
 
 ## Usage
 
-### Stream downloading
+### Stream downloading and reloading from disk
 
 For a given program, we can make a `Stream` object with its
 URLs for the day's episode, download ("pull"), and segment ("preprocess")
@@ -62,21 +62,22 @@ stream = load_stream(transcribe=True)
 The `load_stream` function initialises a `Stream` object, and upon doing so the
 `Stream.pull()`, `Stream.preprocess()`, and `Stream.transcribe()` methods are called
 in sequence, to pull the MP4 stream from its URLs, concatenate into a single output
-and convert to WAV at 16 kHz, equivalent to the following shell commands:
+and convert to WAV at 16 kHz
 
-```sh
-for x in assets/*.dash assets/*.m4s; do cat $x >> output.mp4; done
-ffmpeg -i output.mp4 -ar 16000 -ac 2 -f wav output.wav
+After this has been done, the transcript timings for each of the segments is stored in a TSV
+so that it can be reloaded without having to recompute each time. To reload a stream that's
+already been transcribed, use `reload_stream`, e.g. for the episode 5 days ago:
+
+```py
+from tap.scrape import reload_stream
+stream = reload_stream(ymd_ago=(0,0,-5))
 ```
+
+### Preprocessing details
 
 In the final step of preprocessing, the audio is chopped up ("segmented") at 'gaps'
 (typically, pauses between speech). This is obtained via the
 [INA speech segmenter](https://github.com/ina-foss/inaSpeechSegmenter)
-called from Python but equivalent to:
-
-```sh
-ina_speech_segmenter.py -i ./entire_program.wav -o ./segmented/
-```
 
 First, the audio is labelled as speech/noise/music (by default it will also annotate gender,
 which in my experience gives more accurate speaker segmentation). While gender assignment is

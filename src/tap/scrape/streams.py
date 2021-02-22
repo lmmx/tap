@@ -11,6 +11,7 @@ from glob import glob
 from pathlib import Path
 from sys import stderr
 from tqdm import tqdm
+from pandas import read_csv
 
 class Channel:
     def __init__(self, channel):
@@ -108,13 +109,24 @@ class Episode(Program):
         return self.__episode__
 
 class Stream(Episode):
-    def __init__(self, channel, station, program, date, urlset, transcribe=False, **preproc_opts):
+    def __init__(self, channel, station, program, date, urlset, transcribe=False,
+            reload=False, load_full_transcripts=True, **preproc_opts):
+        # Set repr and directory properties for channel, station, program, episode, date
         super().__init__(channel, station, program, date)
         self.stream_urls = urlset
-        self.pull()
-        self.preprocess(**preproc_opts)
-        if transcribe:
-            self.transcribe() # Can also pass in model_to_load
+        if reload:
+            self.reload_transcripts()
+        else:
+            self.pull()
+            self.preprocess(**preproc_opts)
+            if transcribe:
+                self.transcribe() # Can also pass in model_to_load or `just_filenames`
+        try:
+            # Load texts into `transcript_timings` DataFrame
+            # pass `full_text=True` to load the transcript text into memory
+            self.load_transcript_text(full_text=load_full_transcripts)
+        except Exception as e:
+            print("Non-fatal error while trying to reload transcripts", file=stderr)
 
     @property
     def stream_urls(self):
@@ -180,17 +192,60 @@ class Stream(Episode):
             gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
             transcoded_wav = mp4_to_wav(gathered_mp4)
         self.transcript_timings, self.segment_dir = segment_pauses_and_spread(transcoded_wav, **opts)
+        self.set_transcript_timings_config()
+        self.transcript_timings.to_csv(self.txn_tsv, **self._txn_tsv_w_opts)
+
+    def set_transcript_timings_config(self):
+        """
+        Create any necessary directories
+        """
+        self.txn_tsv = self.episode_dir / "segment_times.tsv"
+        self._txn_tsv_r_opts = {"sep": "\t", "quoting": 2}
+        self._txn_tsv_w_opts = {**self._txn_tsv_r_opts, "index": False}
+        self._txn_tsv_r_col_map_opts = {"input": Path, "output": Path}
+
+    def reload_transcripts(self):
+        """
+        Set the `segment_dir` and `transcript_dir` attributes which were otherwise
+        provided by a call to `segment_pauses_and_spread` in the `preprocess` method.
+        
+        Reload the `transcript_timings` DataFrame (with very small floating point
+        error from original values).
+        """
+        if not hasattr(self, "segment_dir"):
+            self.segment_dir = self.episode_dir / "segmented"
+        if not hasattr(self, "transcript_dir"):
+            self.transcript_dir = self.segment_dir / "transcripts"
+        self.set_transcript_timings_config()
+        self.transcript_timings = read_csv(self.txn_tsv, **self._txn_tsv_r_opts)
+        for col, mappable in self._txn_tsv_r_col_map_opts.items():
+            self.transcript_timings[col] = self.transcript_timings[col].map(mappable)
+
+    def load_transcript_text(self, full_text=True):
+        """
+        To not load the transcript text itself into memory (instead just store the file
+        paths to the transcripts) set `full_text` to False (default: True).
+        """
+        transcripts = []
+        for wav in self.transcript_timings.output:
+            transcript_filename = wav.stem + ".txt"
+            transcript = self.transcript_dir / transcript_filename
+            if full_text:
+                with open(transcript, "r") as f:
+                    txt = f.read().rstrip("\n")
+                transcripts.append(txt)
+            else:
+                transcripts.append(transcript)
+        self.transcript_timings["transcripts"] = transcripts
 
     def transcribe(self, model_to_load="facebook/wav2vec2-base-960h"):
         files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
         # Setting `.transcripts` attr adds `transcript` column to `.transcript_timings`
         print(f"Transcribing {len(files_to_transcribe)} segmented audio files", file=stderr)
-        transcript_dir = self.segment_dir / "transcripts"
-        transcript_dir.mkdir(exist_ok=True)
-        #self.transcripts = []
+        self.transcript_dir = self.segment_dir / "transcripts"
+        self.transcript_dir.mkdir(exist_ok=True)
         for f in tqdm(files_to_transcribe):
             transcript = transcribe_audio_file(f, model_to_load)
             transcript_filename = Path(f).stem + ".txt"
-            with open(transcript_dir / transcript_filename, "w") as fh:
+            with open(self.transcript_dir / transcript_filename, "w") as fh:
                 fh.write(transcript+"\n")
-            #self.transcripts.append(transcript)
