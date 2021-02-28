@@ -21,6 +21,13 @@ Dependencies are specified in `requirements.txt`:
     - Forces `matplotlib<3.3.0` due to a deprecation of the
       [`warn` argument to `use`](https://matplotlib.org/stable/api/prev_api_changes/api_changes_3.3.0.html?highlight=deprecations#arguments)
 - soundfile
+- HuggingFace Transformers for Wav2Vec 2.0 transcription and T5 summarisation
+  - The T5 summarisation part has a dependency of SentencePiece
+
+Optional additional dependency (for my use):
+
+- [quill](https://github.com/spin-systems/quill)
+  - Website generator driver
 
 ### Suggested conda setup
 
@@ -46,6 +53,10 @@ from tap.scrape import load_stream
 stream = load_stream(transcribe=True)
 ```
 
+<details><summary>More details</summary>
+
+<p>
+
 - Current default program for `load_stream` is the BBC R4 Today programme.
 - Current default value of the `transcribe` argument for `load_stream` is `False`. Setting it to
   `True` will initiate the transcription immediately upon creating the stream object.
@@ -58,6 +69,10 @@ stream = load_stream(transcribe=True)
   the audio file is first split up based on pauses between speakers, but the `max_s` value (a float)
   sets the maximum number of seconds between the segments (i.e. maximum duration of audio clips
   to be transcribed). Default is 50 seconds based on my experience.
+
+</p>
+
+</details>
   
 The `load_stream` function initialises a `Stream` object, and upon doing so the
 `Stream.pull()`, `Stream.preprocess()`, and `Stream.transcribe()` methods are called
@@ -73,11 +88,65 @@ from tap.scrape import reload_stream
 stream = reload_stream(ymd_ago=(0,0,-5))
 ```
 
+To summarise the transcripts, we can't just merge them all (due to token limits of the language
+models which do the summarisation). To merge the first two transcripts from a stream, pass to
+`tap.precis.summarise`:
+
+```py
+from tap.scrape import reload_stream
+from tap.precis import summarise
+stream = reload_stream(ymd_ago=(0,0,-5))
+all_transcripts = stream.transcript_timings.transcripts.tolist()
+some_transcripts = " ".join(all_transcripts[:2])
+summary = summarise(some_transcripts)
+```
+
+To process an entire stream then, we must summarise it in chunks:
+
+```py
+from tap.scrape import reload_stream
+from tap.precis import summarise_in_chunks
+stream = reload_stream(ymd=(2021,2,17))
+all_transcripts = stream.transcript_timings.transcripts.tolist()
+summaries, chunk_sizes = summarise_in_chunks(all_transcripts)
+```
+
+This is facilitated as a pipeline, writing to a specified output directory
+
+```py
+from tap.scrape import reload_stream
+stream = reload_stream(ymd=(2021,2,17))
+stream.export_transcripts(format="txt", out_dir="/path/to/output/")
+```
+
+For my personal use I combine this with `quill`, to build a website:
+
+```py
+from tap.scrape import reload_stream
+stream = reload_stream(ymd=(2021,2,17))
+stream.export_transcripts(out_format="mmd", domain="poll", single_file=True)
+```
+
+- The `single_file` option defaults to False, but this creates many files (one per transcript,
+  derived from a chunk of one or more audio segments, around 60 per 3 hour program). With
+  `single_file=True`, one file `transcript_summaries.mmd` is generated for the web (i.e. a single
+  web page).
+
+- There's also a pipeline API version (which loads a 1.22GB _DistilBART_ model,
+  [`sshleifer/distilbart-cnn-12-6`](https://huggingface.co/sshleifer/distilbart-cnn-12-6))
+
+- You can also use T5 which works best up to 512 tokens, even though it won't complain until OOM at
+  1024 tokens ([source](https://github.com/huggingface/transformers/issues/4224#issuecomment-670550353))
+
 ### Preprocessing details
 
 In the final step of preprocessing, the audio is chopped up ("segmented") at 'gaps'
 (typically, pauses between speech). This is obtained via the
 [INA speech segmenter](https://github.com/ina-foss/inaSpeechSegmenter)
+
+<details><summary>More details</summary>
+
+<p>
 
 First, the audio is labelled as speech/noise/music (by default it will also annotate gender,
 which in my experience gives more accurate speaker segmentation). While gender assignment is
@@ -109,6 +178,10 @@ Any smaller segments than this simply get fused together.
 Lastly, a Wav2Vec2 model trained for 960h is loaded from the HuggingFace Hub,
 and the text produced is annotated onto each segment in the `Stream.transcripts`
 attribute (which when set adds a column to the `Stream.transcript_timings` DataFrame).
+
+</p>
+
+</details>
 
 ### Catalogue exploration
 

@@ -5,6 +5,7 @@ from ..preproc.format_conversion import mp4_to_wav
 from ..preproc.segment import segment_pauses_and_spread
 from ..stt import transcribe_audio_file
 from ..data.store import channels
+from ..precis.summary_exporters import DocSummaryExportEnum
 import asyncio
 from functools import reduce
 from glob import glob
@@ -114,6 +115,7 @@ class Stream(Episode):
         # Set repr and directory properties for channel, station, program, episode, date
         super().__init__(channel, station, program, date)
         self.stream_urls = urlset
+        self.full_text_transcripts_loaded = False
         if reload:
             self.reload_transcripts()
         else:
@@ -227,6 +229,7 @@ class Stream(Episode):
         paths to the transcripts) set `full_text` to False (default: True).
         """
         transcripts = []
+        self.full_text_transcripts_loaded = full_text
         for wav in self.transcript_timings.output:
             transcript_filename = wav.stem + ".txt"
             transcript = self.transcript_dir / transcript_filename
@@ -249,3 +252,41 @@ class Stream(Episode):
             transcript_filename = Path(f).stem + ".txt"
             with open(self.transcript_dir / transcript_filename, "w") as fh:
                 fh.write(transcript+"\n")
+
+    def export_transcripts(self, out_format="txt", out_dir=None, domain=None, single_file=False):
+        """
+        If `out_format` is "txt" (default) the transcripts are exported as plain text,
+        if `out_format` is "md" they are converted to GitHub-flavoured markdown (using
+        `<details>` blocks to display a collapsed view of the full transcripts and 
+        `<summary>` tags to display the associated summary text).
+        if `out_format` is "mmd" they are converted to quill’s lever MMD format
+        (specifically designed for transcripts, particularly when clauses are split
+        on conjunctives).
+        """
+        dir_sep = "_"
+        program_dirname = dir_sep.join(["tap", *self.program_parts])
+        if domain:
+            try:
+                from quill import AddressPath
+            except (ImportError, ModuleNotFoundError) as e:
+                raise type(e)(
+                    f"quill must be installed to export transcripts to domains\n{e.msg}"
+                )
+            ymd = [*self.date.timetuple()][:3]
+            out_dir = AddressPath.from_parts(domain=domain, ymd=ymd).filepath
+        elif out_dir is None:
+            raise ValueError("No output directory supplied for transcript export")
+        out_dir = out_dir / program_dirname
+        if out_format not in DocSummaryExportEnum.__members__:
+            raise ValueError(f"{out_format} is not a valid DocSummaryExportEnum")
+        if not self.full_text_transcripts_loaded:
+            self.load_transcript_text(full_text=True)
+        all_transcripts = self.transcript_timings.transcripts.tolist()
+        summary_exporter = DocSummaryExportEnum[out_format].value
+        print(f"Exporting {len(all_transcripts)} transcripts to {out_dir}", file=stderr)
+        exporter = summary_exporter(documents=all_transcripts, to=out_dir)
+        wire_mmt_config = exporter.wire_post_hook(single_file=single_file)
+        # TODO: `meta.mmt` too with `[schedule]` and `[via]`
+        if wire_mmt_config:
+            with open(out_dir / "wire.mmt", "w") as f:
+                f.write(wire_mmt_config)

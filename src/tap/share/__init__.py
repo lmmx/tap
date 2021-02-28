@@ -1,4 +1,5 @@
 from . import cal, audio, multiproc, pandas
+from .torch_utils import *
 
 from . import __path__ as _dir_nspath
 from pathlib import Path as _Path

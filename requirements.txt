@@ -8,6 +8,7 @@ ffmpeg-python
 more_itertools
 tqdm
 transformers
+sentencepiece
 librosa
 tensorflow-gpu
 matplotlib<3.30
