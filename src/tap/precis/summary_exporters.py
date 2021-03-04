@@ -86,14 +86,12 @@ class GitHubMarkdownExport(DocumentSummaryExporter):
 
 class LeverMmdExport(DocumentSummaryExporter):
     ext = "mmd"
-    quill_template_name = "radio_transcript"
+    quill_template_name = "radio_transcript_summaries"
     def transform_summary(self, summary, document):
         # Simplified approximation of proper MMD format version of plaintext
-        mmd_summary, mmd_document = [
-            "-" + original.strip(" ")
-            for original in (summary, document)
-        ]
-        sections = ["-#Summary", f"{mmd_summary}\n", "-#Full", f"{mmd_document}\n"]
+        mmd_summary = "-?" + summary.strip(" ")
+        mmd_document = "-:" + document.strip(" ")
+        sections = [f"{mmd_summary}", f"{mmd_document}\n"]
         summary_file_string = "\n".join(sections)
         return summary_file_string
 
@@ -101,6 +99,10 @@ class LeverMmdExport(DocumentSummaryExporter):
         if single_file:
             merged_output_filename = f"transcript_summaries.{self.ext}"
             merged_output_file = self.out_files[0].parent / merged_output_filename
+            if merged_output_file.exists():
+                # Overwrite existing file (blank it)
+                with open(merged_output_file, "w") as f:
+                    f.write("")
             with open(merged_output_file, "a") as fw:
                 for out_file in self.out_files[:-1]:
                     with open(out_file, "r") as fr:
