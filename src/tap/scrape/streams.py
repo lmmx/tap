@@ -117,18 +117,20 @@ class Stream(Episode):
         self.stream_urls = urlset
         self.full_text_transcripts_loaded = False
         if reload:
-            self.reload_transcripts()
+            # Must have at least segments, if no transcripts then potentially create
+            self.reload_segments()
+            self.reload_transcripts(transcribe=transcribe)
+            try:
+                # Load texts into `transcript_timings` DataFrame
+                # pass `full_text=True` to load the transcript text into memory
+                self.load_transcript_text(full_text=load_full_transcripts)
+            except Exception as e:
+                print("Non-fatal error while trying to reload transcripts", file=stderr)
         else:
             self.pull()
             self.preprocess(**preproc_opts)
             if transcribe:
                 self.transcribe() # Can also pass in model_to_load or `just_filenames`
-        try:
-            # Load texts into `transcript_timings` DataFrame
-            # pass `full_text=True` to load the transcript text into memory
-            self.load_transcript_text(full_text=load_full_transcripts)
-        except Exception as e:
-            print("Non-fatal error while trying to reload transcripts", file=stderr)
 
     @property
     def stream_urls(self):
@@ -206,7 +208,13 @@ class Stream(Episode):
         self._txn_tsv_w_opts = {**self._txn_tsv_r_opts, "index": False}
         self._txn_tsv_r_col_map_opts = {"input": Path, "output": Path}
 
-    def reload_transcripts(self):
+    def reload_segments(self):
+        if not hasattr(self, "segment_dir"):
+            self.segment_dir = self.episode_dir / "segmented"
+        if not self.segment_dir.exists():
+            raise ValueError("No segments to reload")
+    
+    def reload_transcripts(self, transcribe=False):
         """
         Set the `segment_dir` and `transcript_dir` attributes which were otherwise
         provided by a call to `segment_pauses_and_spread` in the `preprocess` method.
@@ -214,10 +222,15 @@ class Stream(Episode):
         Reload the `transcript_timings` DataFrame (with very small floating point
         error from original values).
         """
-        if not hasattr(self, "segment_dir"):
-            self.segment_dir = self.episode_dir / "segmented"
         if not hasattr(self, "transcript_dir"):
             self.transcript_dir = self.segment_dir / "transcripts"
+        if not self.transcript_dir.exists():
+            if transcribe:
+                # Retranscribe
+                self.transcribe()
+            else:
+                msg = f"No transcripts in {self.transcript_dir} and {transcribe=}"
+                raise ValueError(msg)
         self.set_transcript_timings_config()
         self.transcript_timings = read_csv(self.txn_tsv, **self._txn_tsv_r_opts)
         for col, mappable in self._txn_tsv_r_col_map_opts.items():
@@ -241,7 +254,7 @@ class Stream(Episode):
                 transcripts.append(transcript)
         self.transcript_timings["transcripts"] = transcripts
 
-    def transcribe(self, model_to_load="facebook/wav2vec2-base-960h"):
+    def transcribe(self, model_to_load="facebook/wav2vec2-large-960h-lv60-self"):
         files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
         # Setting `.transcripts` attr adds `transcript` column to `.transcript_timings`
         print(f"Transcribing {len(files_to_transcribe)} segmented audio files", file=stderr)

@@ -32,13 +32,39 @@ Optional additional dependency (for my use):
 ### Suggested conda setup
 
 ```sh
-conda create -n tap
+conda create -y -n tap
 conda activate tap
-conda install "cudatoolkit>=11.0,<11.0.221" -c conda-forge
+#conda install "cudatoolkit>=11.0,<11.0.221" -c conda-forge
+conda install "cudatoolkit<11.2" -c conda-forge
 conda install pytorch torchaudio -c pytorch
 pip install -r requirements.txt
 pip install -e . # or `pip install .` for a fixed installation
+# Also run `pip install -e .` for quill if using
 ```
+
+To install CUDA with conda (and get a managed CUDNN)
+
+```sh
+conda create -y -n tap
+conda activate tap
+conda install cudnn "cudatoolkit<11.2" -c conda-forge
+conda install pytorch torchaudio -c pytorch
+pip install -r requirements.txt
+pip install -e . # or `pip install .` for a fixed installation
+# Also run `pip install -e .` for quill if using
+```
+
+If using CUDA 11.1 for RTX, you'll also need to hardlink the shared library for `libcusolver`
+for TensorFlow to work (for the InaSpeechSegmenter step), as
+[documented here](https://github.com/tensorflow/tensorflow/issues/44777)
+
+```sh
+cd $CONDA_PREFIX/lib
+sudo ln libcusolver.so.11 libcusolver.so.10 # hard link
+cd -
+```
+
+- Possibly faster to install Intel-optimised Tensorflow via conda(?)
 
 ## Usage
 
@@ -81,11 +107,12 @@ and convert to WAV at 16 kHz
 
 After this has been done, the transcript timings for each of the segments is stored in a TSV
 so that it can be reloaded without having to recompute each time. To reload a stream that's
-already been transcribed, use `reload_stream`, e.g. for the episode 5 days ago:
+already been transcribed, use `load_stream(reload=True)` (which will reload the segmented
+audio clips, and the transcripts too if they exist), e.g. for the episode 5 days ago:
 
 ```py
-from tap.scrape import reload_stream
-stream = reload_stream(ymd_ago=(0,0,-5))
+from tap.scrape import load_stream
+stream = load_stream(ymd_ago=(0,0,-5), reload=True)
 ```
 
 To summarise the transcripts, we can't just merge them all (due to token limits of the language
@@ -93,9 +120,9 @@ models which do the summarisation). To merge the first two transcripts from a st
 `tap.precis.summarise`:
 
 ```py
-from tap.scrape import reload_stream
+from tap.scrape import load_stream
 from tap.precis import summarise
-stream = reload_stream(ymd_ago=(0,0,-5))
+stream = load_stream(ymd_ago=(0,0,-5), reload=True)
 all_transcripts = stream.transcript_timings.transcripts.tolist()
 some_transcripts = " ".join(all_transcripts[:2])
 summary = summarise(some_transcripts)
@@ -104,9 +131,9 @@ summary = summarise(some_transcripts)
 To process an entire stream then, we must summarise it in chunks:
 
 ```py
-from tap.scrape import reload_stream
+from tap.scrape import load_stream
 from tap.precis import summarise_in_chunks
-stream = reload_stream(ymd=(2021,2,17))
+stream = load_stream(ymd=(2021,2,17), reload=True)
 all_transcripts = stream.transcript_timings.transcripts.tolist()
 summaries, chunk_sizes = summarise_in_chunks(all_transcripts)
 ```
@@ -114,16 +141,16 @@ summaries, chunk_sizes = summarise_in_chunks(all_transcripts)
 This is facilitated as a pipeline, writing to a specified output directory
 
 ```py
-from tap.scrape import reload_stream
-stream = reload_stream(ymd=(2021,2,17))
+from tap.scrape import load_stream
+stream = load_stream(ymd=(2021,2,17), reload=True)
 stream.export_transcripts(format="txt", out_dir="/path/to/output/")
 ```
 
 For my personal use I combine this with `quill`, to build a website:
 
 ```py
-from tap.scrape import reload_stream
-stream = reload_stream(ymd=(2021,2,17))
+from tap.scrape import load_stream
+stream = load_stream(ymd=(2021,2,17), reload=True)
 stream.export_transcripts(out_format="mmd", domain="poll", single_file=True)
 ```
 

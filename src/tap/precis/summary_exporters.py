@@ -87,10 +87,17 @@ class GitHubMarkdownExport(DocumentSummaryExporter):
 class LeverMmdExport(DocumentSummaryExporter):
     ext = "mmd"
     quill_template_name = "radio_transcript_summaries"
+    multinode_detail = False
     def transform_summary(self, summary, document):
         # Simplified approximation of proper MMD format version of plaintext
         mmd_summary = "-?" + summary.strip(" ")
-        mmd_document = "-:" + document.strip(" ")
+        doc_stripped = document.strip(" ")
+        mmd_document = "-:" + (
+            doc_stripped.replace(". ", "\n-")
+            if self.multinode_detail
+            else doc_stripped
+        )
+        print(mmd_document)
         sections = [f"{mmd_summary}", f"{mmd_document}\n"]
         summary_file_string = "\n".join(sections)
         return summary_file_string

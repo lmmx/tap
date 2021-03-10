@@ -6,7 +6,7 @@ from .streams import Stream
 from .link_file_handling import handle_link_file
 from .stream_url_handling import construct_urlset
 
-__all__ = ["load_stream", "reload_stream"]
+__all__ = ["load_stream"]
 
 
 def load_stream(
@@ -59,9 +59,3 @@ def load_stream(
     #    url_i = construct_url(i)
     stream = Stream(channel, station, program, ymd, urlset, **stream_opts)
     return stream
-
-def reload_stream(
-    reload=True,
-    **kwargs
-):
-    return load_stream(reload=True, **kwargs)

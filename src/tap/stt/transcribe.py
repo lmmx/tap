@@ -4,7 +4,11 @@ import torch
 from glob import glob
 
 
-def transcribe_audio_file(audio_file, model_to_load="facebook/wav2vec2-base-960h"):
+def transcribe_audio_file(
+    audio_file,
+    #model_to_load="facebook/wav2vec2-base-960h",
+    model_to_load="facebook/wav2vec2-large-960h-lv60-self",
+):
     # load model and tokenizer
     tokenizer = Wav2Vec2Tokenizer.from_pretrained(model_to_load)
     model = Wav2Vec2ForCTC.from_pretrained(model_to_load)
