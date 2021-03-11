@@ -231,4 +231,6 @@ will give the path to a _channel » station » program_, e.g.
 channels.bbc.r4.today
 ```
 
-(TBC)
+- This corresponds to the `tap.data.store.channels.bbc.r4.today` module provided as an example of
+  how to set up a program for tap to download into.
+  - (In future I will consider how to automate the creation of modules for other programs!)
