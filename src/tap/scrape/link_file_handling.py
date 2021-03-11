@@ -1,4 +1,5 @@
 from sys import stderr
+from .bbc_sounds_api import final_m4s_link_from_pid
 
 __all__ = ["handle_link_file"]
 
@@ -12,12 +13,17 @@ def handle_link_file(link_dir_path, channel, station, program, cal_subpath, link
         if not link_dir_path.exists():
             raise ValueError(f"No records for {recording_id} on {cal_datestr}")
         else:
+            # TODO: automatically scrape the PID for this if available
+            # TODO: automatically obtain the link file given the PID
+            # pid = scrape_ep_pid_from_parent_pid(parent_pid, ymd)
+            # link = final_m4s_link_from_pid(episode_pid)
             msg = f"No link file for {recording_id} on {cal_datestr}"
             #raise ValueError(msg)
             print(msg, file=stderr)
             try:
-                input_prompt = f"Enter the URL of the final M4S file for the stream: "
-                link = input(input_prompt)
+                input_prompt = f"Enter the PID for the stream episode: "
+                episode_pid = input(input_prompt)
+                link = final_m4s_link_from_pid(episode_pid)
             except KeyboardInterrupt as e:
                 raise ValueError(msg)
             else:
