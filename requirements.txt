@@ -2,6 +2,7 @@ python-dateutil
 httpx[http2]
 aiostream
 aiofiles
+requests
 inaSpeechSegmenter
 soundfile
 ffmpeg-python

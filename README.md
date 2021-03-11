@@ -86,8 +86,11 @@ stream = load_stream(transcribe=True)
 - Current default program for `load_stream` is the BBC R4 Today programme.
 - Current default value of the `transcribe` argument for `load_stream` is `False`. Setting it to
   `True` will initiate the transcription immediately upon creating the stream object.
-- Currently this requires manual provision of the final MP4 segment from inspecting the browser's
-  network console (TODO: automate with Selenium)
+- This step automatically calculates the URLs of the MP4 segments by obtaining the
+  episode ID from the list of available episodes from the stored program (series) ID.
+  - In future, when adding a new program, it will be possible to search for the program ID,
+    or it could be obtained as the parent ID (given as episode metadata JSON) to then
+    store within the module entry for that program upon its creation in `tap.data.store`
 - To get its URLs for the day before yesterday, pass the `ymd_ago` argument (a tuple)
   e.g. `load_stream(ymd_ago=(0,0,-2))` or pass the `ymd` argument [either a `datetime.date` or an integer tuple
   `(y,m,d)`] for an absolute date e.g. `load_stream(ymd=(2021,2,8))`
