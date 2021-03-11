@@ -1,9 +1,9 @@
 from enum import Enum
 from collections import namedtuple
 
-__all__ = ["NationalChannel", "RegionalChannel", "LocalChannel"]
+__all__ = ["ChannelPicker", "NationalChannel", "RegionalChannel", "LocalChannel"]
 
-channel = namedtuple("Channel", "pid title url")
+channel = namedtuple("Channel", "channel_id title url")
 
 class NationalChannel(Enum):
     r1x = channel("p00fzl64", "BBC Radio 1Xtra", "1xtra/programmes/schedules")
@@ -75,3 +75,8 @@ class LocalChannel(Enum):
     yor = channel("p00fzl90", "BBC Radio York", "radioyork/programmes/schedules")
     tcr = channel("p00fzl96", "BBC Three Counties Radio", "threecountiesradio/programmes/schedules")
     wm = channel("p00fzl9f", "BBC WM 95.6", "wm/programmes/schedules")
+
+class ChannelPicker(Enum):
+    local = LocalChannel
+    regional = RegionalChannel
+    national = NationalChannel
