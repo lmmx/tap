@@ -97,7 +97,6 @@ class LeverMmdExport(DocumentSummaryExporter):
             if self.multinode_detail
             else doc_stripped
         )
-        print(mmd_document)
         sections = [f"{mmd_summary}", f"{mmd_document}\n"]
         summary_file_string = "\n".join(sections)
         return summary_file_string
