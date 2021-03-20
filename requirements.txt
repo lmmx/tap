@@ -12,3 +12,4 @@ sentencepiece
 librosa
 tensorflow-gpu
 matplotlib<3.30
+beeb

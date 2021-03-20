@@ -1,6 +1,6 @@
 from sys import stderr
 from ..data.store import channels
-from .bbc_api import final_m4s_link_from_episode_pid, final_m4s_link_from_series_pid
+from beeb.api import final_m4s_link_from_episode_pid, final_m4s_link_from_series_pid
 from functools import reduce
 
 __all__ = ["handle_link_file"]
