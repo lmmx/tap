@@ -17,7 +17,7 @@ __all__ = ["Stream"]
 class Stream(Episode):
     def __init__(
         self,
-        channel,
+        broadcaster,
         station,
         programme,
         date,
@@ -28,8 +28,8 @@ class Stream(Episode):
         **preproc_opts,
     ):
         # Set repr and directory properties for:
-        # channel, station, programme, episode, date
-        super().__init__(channel, station, programme, date)
+        # broadcaster, station, programme, episode, date
+        super().__init__(broadcaster, station, programme, date)
         self.stream_urls = urlset
         self.full_text_transcripts_loaded = False
         if reload:

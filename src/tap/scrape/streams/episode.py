@@ -1,13 +1,13 @@
 from .station import Station
 from ...share.cal import cal_path
-from ...data.store import channels
+from ...data.store import broadcaster
 from functools import reduce
 
 __all__ = ["Program", "Episode"]
 
 class Program(Station):
-    def __init__(self, channel, station, programme):
-        super().__init__(channel, station)
+    def __init__(self, broadcaster, station, programme):
+        super().__init__(broadcaster, station)
         self.programme = programme
 
     @property
@@ -20,11 +20,11 @@ class Program(Station):
 
     @property
     def programme_parts(self):
-        return self.channel, self.station, self.programme
+        return self.broadcaster, self.station, self.programme
 
     @property
     def programme_dir(self):
-        return reduce(getattr, self.programme_parts, channels)._dir_path
+        return reduce(getattr, self.programme_parts, broadcaster)._dir_path
 
     @property
     def __programme__(self):
@@ -35,8 +35,8 @@ class Program(Station):
 
 
 class Episode(Program):
-    def __init__(self, channel, station, programme, date):
-        super().__init__(channel, station, programme)
+    def __init__(self, broadcaster, station, programme, date):
+        super().__init__(broadcaster, station, programme)
         self.date = date
 
     @property

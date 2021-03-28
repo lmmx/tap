@@ -1,6 +1,6 @@
 from subprocess import call
 from pathlib import Path
-from ..data.store.channels import _dir_path as data_dir
+from ..data.store.broadcasters import _dir_path as data_dir
 from ..share.cal import cal_path, cal_shift, cal_date, parse_abs_from_rel_date
 from .streams import Stream
 
@@ -13,7 +13,7 @@ __all__ = ["load_stream"]
 
 
 def load_stream(
-    channel="bbc", station="r4", programme="Today", ymd=None, ymd_ago=None, **stream_opts
+    broadcaster="bbc", station="r4", programme="Today", ymd=None, ymd_ago=None, **stream_opts
 ):
     """
     Create a `Stream` for a specific episode of a radio programme from the named arguments
@@ -34,9 +34,9 @@ def load_stream(
     """
     ymd = parse_abs_from_rel_date(ymd, ymd_ago)
     cal_subpath = cal_path(ymd)
-    prog_date_dir = data_dir / channel / station / programme / cal_subpath
+    prog_date_dir = data_dir / broadcaster / station / programme / cal_subpath
     # This step obtains the episode PID and uses this to obtain the last M4S stream URL
-    if channel != "bbc":
+    if broadcaster != "bbc":
         raise NotImplementedError("Only currently supporting BBC stations")
     programme_pid = ProgrammeCatalogue.lazy_generate(station).get_programme_by_title(
         programme, pid_only=True
@@ -49,7 +49,7 @@ def load_stream(
     y2k_ymd = tuple(y2k, m, d)
 
     last_link_url = final_m4s_link_from_programme_pid(programme_pid, ymd=y2k_ymd)
-    ensure_stream_dir(data_dir, channel, station, programme_pid, cal_subpath)
+    ensure_stream_dir(data_dir, broadcaster, station, programme_pid, cal_subpath)
     urlset = StreamUrlSet.from_last_m4s_url(last_link_url)
-    stream = Stream(channel, station, programme, ymd, urlset, **stream_opts)
+    stream = Stream(broadcaster, station, programme, ymd, urlset, **stream_opts)
     return stream

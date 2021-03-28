@@ -1,33 +1,33 @@
 from beeb.nav import ChannelPicker
 
-__all__ = ["Channel", "Station"]
+__all__ = ["Broadcaster", "Station"]
 
-class Channel:
-    def __init__(self, channel):
-        self.channel = channel
-
-    @property
-    def channel(self):
-        return self._channel
-
-    @channel.setter
-    def channel(self, c):
-        self._channel = c
+class Broadcaster:
+    def __init__(self, broadcaster):
+        self.broadcaster = broadcaster
 
     @property
-    def __channel__(self):
-        return f"channel⠶{self.channel}"
+    def broadcaster(self):
+        return self._broadcaster
+
+    @broadcaster.setter
+    def broadcaster(self, c):
+        self._broadcaster = c
+
+    @property
+    def __broadcaster__(self):
+        return f"broadcaster⠶{self.broadcaster}"
 
     def __repr__(self):
-        return self.__channel__
+        return self.__broadcaster__
 
     @property
     def is_bbc(self):
-        return self.channel == "bbc"
+        return self.broadcaster == "bbc"
 
-class Station(Channel):
-    def __init__(self, channel, station):
-        super().__init__(channel)
+class Station(Broadcaster):
+    def __init__(self, broadcaster , station):
+        super().__init__(broadcaster )
         self.station = station
 
     @property
