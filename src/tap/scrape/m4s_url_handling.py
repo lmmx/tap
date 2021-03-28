@@ -3,7 +3,7 @@ from ..data.store import channels
 from beeb.api import final_m4s_link_from_episode_pid, final_m4s_link_from_programme_pid
 from functools import reduce
 
-__all__ = ["handle_link_file"]
+__all__ = ["get_last_m4s_url"]
 
 
 # TODO the real function of this is to create a directory, make this explicit
