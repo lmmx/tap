@@ -3,7 +3,8 @@ from pathlib import Path
 from ..data.store.channels import _dir_path as data_dir
 from ..share.cal import cal_path, cal_shift, cal_date, parse_abs_from_rel_date
 from .streams import Stream
-from .link_file_handling import handle_link_file
+#from .link_file_handling import handle_link_file
+from .m4s_url_handling import get_last_m4s_url
 from .stream_url_handling import construct_urlset
 
 __all__ = ["load_stream"]
@@ -35,9 +36,10 @@ def load_stream(
 
     prog_date_dir = data_dir / channel / station / program / cal_subpath
 
-    link_file = handle_link_file(data_dir, channel, station, program, cal_subpath)
-    with open(link_file, "r") as f:
-        last_link_url = f.read().strip()
+    #link_file = handle_link_file(data_dir, channel, station, program, cal_subpath)
+    #with open(link_file, "r") as f:
+    #    last_link_url = f.read().strip()
+    last_link_url = get_last_m4s_url(data_dir, channel, station, program, cal_subpath)
 
     last_filename = Path(Path(last_link_url).name)
     url_prefix = last_link_url[: -len(last_filename.name)]
