@@ -11,6 +11,7 @@ from beeb.stream.urlsets import StreamUrlSet
 
 __all__ = ["load_stream"]
 
+
 def ensure_stream_dir(link_dir_path, broadcaster, station, programme_pid, cal_subpath):
     "The function of this is to create a directory"
     if not link_dir_path.exists():
@@ -18,12 +19,18 @@ def ensure_stream_dir(link_dir_path, broadcaster, station, programme_pid, cal_su
     link_file_dir = link_dir_path / broadcaster / station / programme_pid / cal_subpath
     link_file_dir.mkdir(parents=True, exist_ok=True)
 
+
 def load_stream(
-    broadcaster="bbc", station="r4", programme="Today", ymd=None, ymd_ago=None, **stream_opts
+    broadcaster="bbc",
+    station="r4",
+    programme="Today",
+    ymd=None,
+    ymd_ago=None,
+    **stream_opts,
 ):
     """
-    Create a `Stream` for a specific episode of a radio programme from the named arguments
-    and pass `stream_opts` through.
+    Create a `Stream` for a specific episode of a radio programme from the named
+    arguments and pass `stream_opts` through.
 
     `ymd` and `ymd_ago` are options to specify either an absolute
     or relative date as `(year, month, day)` tuple of 3 integers in both cases.
@@ -47,7 +54,7 @@ def load_stream(
     programme_pid = ProgrammeCatalogue.lazy_generate(station).get_programme_by_title(
         programme, pid_only=True
     )
-    
+
     ymd_parts = [*map(lambda p: int(p[:2]), ymd)]
     y2k_y, m, d = ymd_parts
     # Convert internal date to explicitly post-Y2K Y

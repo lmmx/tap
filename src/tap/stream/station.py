@@ -27,7 +27,7 @@ class Broadcaster:
 
 class Station(Broadcaster):
     def __init__(self, broadcaster , station):
-        super().__init__(broadcaster )
+        super().__init__(broadcaster)
         self.station = station
 
     @property
