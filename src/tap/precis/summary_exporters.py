@@ -10,7 +10,7 @@ class DocumentSummaryExporter:
     defined to initialise successfully).
 
     Upon initialisation, summarise the documents in chunks (using
-    `tap.scrape.summarise.summarise_in_chunks`) determined by the
+    `tap.precis.summarise.summarise_in_chunks`) determined by the
     token limit of the summarisation model (for Wav2Vec2: 1024 tokens).
 
     Write the generated summaries to files in the format specified in

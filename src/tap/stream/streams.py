@@ -1,10 +1,9 @@
 from .episode import Episode
-from ..async_utils import fetch_urls
-from ...preproc.merge import gather_pulled_downloads
-from ...preproc.format_conversion import mp4_to_wav
-from ...preproc.segment import segment_pauses_and_spread
-from ...stt import transcribe_audio_file
-from ...precis.summary_exporters import DocSummaryExportEnum
+from ..preproc.merge import gather_pulled_downloads
+from ..preproc.format_conversion import mp4_to_wav
+from ..preproc.segment import segment_pauses_and_spread
+from ..stt import transcribe_audio_file
+from ..precis.summary_exporters import DocSummaryExportEnum
 from glob import glob
 from pathlib import Path
 from sys import stderr
@@ -49,51 +48,18 @@ class Stream(Episode):
             if transcribe:
                 self.transcribe()  # Can also pass in model_to_load or `just_filenames`
 
-    @property
-    def stream_urls(self):
-        return self._stream_urls
-
-    @stream_urls.setter
-    def stream_urls(self, u):
-        self._stream_urls = u
-
-    @property
-    def stream_len(self):
-        return self.stream_urls.size
-
-    @property
-    def __stream__(self):
-        return f"stream⠶{self.stream_urls} from {self.__episode__}"
-
-    def __repr__(self):
-        return self.__stream__
-
-    @property
-    def transcripts(self):
-        return self._transcripts
-
-    @transcripts.setter
-    def transcripts(self, transcripts):
-        self._transcripts = transcripts
-        if hasattr(self, "transcript_timings"):
-            # Set a column on the segment_times dataframe with the transcript text
-            try:
-                self.segment_times["transcript"] = transcripts
-            except Exception as e:
-                print(e, file=stderr)  # Errors break entire object initialisation
-
     def pull(self, verbose=False):
         if verbose:
             print(f"Pulling {self.stream_urls}")
-        urls = self.stream_urls
-        last_url = self.stream_urls.make_part_url(urls.size)
+        last_url = self.stream_urls.make_part_url(self.stream_urls.size)
         last_url_file = self.download_dir / Path(str(last_url)).name
         if not last_url_file.exists():
-            pbar = tqdm(total=urls.size)
-            fetch_urls(urls, download_dir=self.download_dir, pbar=pbar, verbose=verbose)
+            pbar = tqdm(total=self.stream_urls.size)
+            self.stream_urls.fetch_urlset(
+                download_dir=self.download_dir, pbar=pbar, verbose=verbose
+            )
         if verbose:
             print("Done")
-        return
 
     def preprocess(self, **opts):
         """
@@ -227,3 +193,37 @@ class Stream(Episode):
         if wire_mmt_config:
             with open(out_dir / "wire.mmt", "w") as f:
                 f.write(wire_mmt_config)
+
+    @property
+    def stream_urls(self):
+        return self._stream_urls
+
+    @stream_urls.setter
+    def stream_urls(self, u):
+        self._stream_urls = u
+
+    @property
+    def stream_len(self):
+        return self.stream_urls.size
+
+    @property
+    def __stream__(self):
+        return f"stream⠶{self.stream_urls} from {self.__episode__}"
+
+    def __repr__(self):
+        return self.__stream__
+
+    @property
+    def transcripts(self):
+        return self._transcripts
+
+    @transcripts.setter
+    def transcripts(self, transcripts):
+        self._transcripts = transcripts
+        if hasattr(self, "transcript_timings"):
+            # Set a column on the segment_times dataframe with the transcript text
+            try:
+                self.segment_times["transcript"] = transcripts
+            except Exception as e:
+                print(e, file=stderr)  # Errors break entire object initialisation
+

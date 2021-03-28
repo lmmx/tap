@@ -1,6 +1,6 @@
 from .station import Station
-from ...share.cal import cal_path
-from ...data.store import broadcaster
+from ..share.cal import cal_path
+from ..data.store import broadcaster
 from functools import reduce
 
 __all__ = ["Program", "Episode"]

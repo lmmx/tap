@@ -75,7 +75,7 @@ URLs for the day's episode, download ("pull"), and segment ("preprocess")
 the audio ready for transcription, which we kick off immediately:
 
 ```py
-from tap.scrape import load_stream
+from tap.stream import load_stream
 stream = load_stream(transcribe=True)
 ```
 
@@ -114,7 +114,7 @@ already been transcribed, use `load_stream(reload=True)` (which will reload the 
 audio clips, and the transcripts too if they exist), e.g. for the episode 5 days ago:
 
 ```py
-from tap.scrape import load_stream
+from tap.stream import load_stream
 stream = load_stream(ymd_ago=(0,0,-5), reload=True)
 ```
 
@@ -123,7 +123,7 @@ models which do the summarisation). To merge the first two transcripts from a st
 `tap.precis.summarise`:
 
 ```py
-from tap.scrape import load_stream
+from tap.stream import load_stream
 from tap.precis import summarise
 stream = load_stream(ymd_ago=(0,0,-5), reload=True)
 all_transcripts = stream.transcript_timings.transcripts.tolist()
@@ -134,7 +134,7 @@ summary = summarise(some_transcripts)
 To process an entire stream then, we must summarise it in chunks:
 
 ```py
-from tap.scrape import load_stream
+from tap.stream import load_stream
 from tap.precis import summarise_in_chunks
 stream = load_stream(ymd=(2021,2,17), reload=True)
 all_transcripts = stream.transcript_timings.transcripts.tolist()
@@ -144,7 +144,7 @@ summaries, chunk_sizes = summarise_in_chunks(all_transcripts)
 This is facilitated as a pipeline, writing to a specified output directory
 
 ```py
-from tap.scrape import load_stream
+from tap.stream import load_stream
 stream = load_stream(ymd=(2021,2,17), reload=True)
 stream.export_transcripts(format="txt", out_dir="/path/to/output/")
 ```
@@ -152,7 +152,7 @@ stream.export_transcripts(format="txt", out_dir="/path/to/output/")
 For my personal use I combine this with `quill`, to build a website:
 
 ```py
-from tap.scrape import load_stream
+from tap.stream import load_stream
 stream = load_stream(ymd=(2021,2,17), reload=True)
 stream.export_transcripts(out_format="mmd", domain="poll", single_file=True)
 ```
