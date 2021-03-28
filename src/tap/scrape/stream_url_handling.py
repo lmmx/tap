@@ -2,6 +2,7 @@ from functools import partial
 
 __all__ = ["StreamPartURL", "construct_urlset", "StreamUrlSet"]
 
+
 class EpisodeStreamPartURL:
     def __init__(self, url_prefix, filename_prefix, filename_sep, url_suffix):
         self.url_prefix = url_prefix
@@ -9,21 +10,34 @@ class EpisodeStreamPartURL:
         self.filename_sep = filename_sep
         self.url_suffix = url_suffix
 
-    #def __repr__(self):
+    # def __repr__(self):
     #    return f"{self.url_prefix}{self.filename_prefix}(...){self.url_suffix}"
 
     def make_init_url(self, url_suffix=".dash"):
-        return StreamInitURL(self.url_prefix, self.filename_prefix, self.filename_sep, url_suffix)
+        return StreamInitURL(
+            self.url_prefix, self.filename_prefix, self.filename_sep, url_suffix
+        )
 
     def make_part_url(self, int_i):
-        return StreamPartURL(int_i, self.zfill, self.url_prefix, self.filename_prefix, self.filename_sep, self.url_suffix)
+        return StreamPartURL(
+            int_i,
+            self.zfill,
+            self.url_prefix,
+            self.filename_prefix,
+            self.filename_sep,
+            self.url_suffix,
+        )
+
 
 class StreamInitURL(EpisodeStreamPartURL):
     def __repr__(self):
         return f"{self.url_prefix}{self.filename_prefix}{self.url_suffix}"
 
+
 class StreamPartURL(EpisodeStreamPartURL):
-    def __init__(self, int_i, zfill, url_prefix, filename_prefix, filename_sep, url_suffix):
+    def __init__(
+        self, int_i, zfill, url_prefix, filename_prefix, filename_sep, url_suffix
+    ):
         super().__init__(url_prefix, filename_prefix, filename_sep, url_suffix)
         self.zfill = zfill
         self.int_i = int_i
@@ -33,14 +47,25 @@ class StreamPartURL(EpisodeStreamPartURL):
         return str(self.int_i).zfill(self.zfill)
 
     def __repr__(self):
-        return f"{self.url_prefix}{self.filename_prefix}{self.filename_sep}{self.str_i}{self.url_suffix}"
-        return self.url_prefix + self.filename_prefix + self.str_i + self.url_suffix
+        return (
+            f"{self.url_prefix}{self.filename_prefix}{self.filename_sep}"
+            f"{self.str_i}{self.url_suffix}"
+        )
 
 
 class StreamUrlSet(EpisodeStreamPartURL):
-    def __init__(self, size, url_prefix, filename_prefix, filename_sep, url_suffix, zero_based=False, zfill=True):
+    def __init__(
+        self,
+        size,
+        url_prefix,
+        filename_prefix,
+        filename_sep,
+        url_suffix,
+        zero_based=False,
+        zfill=True,
+    ):
         super().__init__(url_prefix, filename_prefix, filename_sep, url_suffix)
-        self.size = size # class is an iterator not a list so record size
+        self.size = size  # class is an iterator not a list so record size
         self.zfill = len(str(size)) if zfill else 0
         self.zero_based = zero_based
         self.reset_pos()
@@ -89,4 +114,3 @@ def construct_urlset(int_i, url_prefix, filename_prefix, filename_sep, url_suffi
         url_suffix=url_suffix,
     )
     return episode_urls
-    #return [episode_url_base.make_part_url(int_i=i) for i in range(1, int_i + 1)]

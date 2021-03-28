@@ -1,119 +1,35 @@
-from .async_utils import fetch_urls
-from ..share.cal import cal_path
-from ..preproc.merge import gather_pulled_downloads
-from ..preproc.format_conversion import mp4_to_wav
-from ..preproc.segment import segment_pauses_and_spread
-from ..stt import transcribe_audio_file
-from ..data.store import channels
-from ..precis.summary_exporters import DocSummaryExportEnum
-import asyncio
-from functools import reduce
+from .episode import Episode
+from ..async_utils import fetch_urls
+from ...preproc.merge import gather_pulled_downloads
+from ...preproc.format_conversion import mp4_to_wav
+from ...preproc.segment import segment_pauses_and_spread
+from ...stt import transcribe_audio_file
+from ...precis.summary_exporters import DocSummaryExportEnum
 from glob import glob
 from pathlib import Path
 from sys import stderr
 from tqdm import tqdm
 from pandas import read_csv
 
-class Channel:
-    def __init__(self, channel):
-        self.channel = channel
+__all__ = ["Stream"]
 
-    @property
-    def channel(self):
-        return self._channel
-
-    @channel.setter
-    def channel(self, c):
-        self._channel = c
-
-    @property
-    def __channel__(self):
-        return f"channel⠶{self.channel}"
-
-    def __repr__(self):
-        return self.__channel__
-
-class Station(Channel):
-    def __init__(self, channel, station):
-        super().__init__(channel)
-        self.station = station
-
-    @property
-    def station(self):
-        return self._station
-
-    @station.setter
-    def station(self, s):
-        self._station = s
-
-    @property
-    def __station__(self):
-        return f"station⠶{self.station} on {self.__channel__}"
-
-    def __repr__(self):
-        return self.__station__
-
-class Program(Station):
-    def __init__(self, channel, station, program):
-        super().__init__(channel, station)
-        self.program = program
-
-    @property
-    def program(self):
-        return self._program
-
-    @program.setter
-    def program(self, p):
-        self._program = p
-
-    @property
-    def program_parts(self):
-        return self.channel, self.station, self.program
-
-    @property
-    def program_dir(self):
-        return reduce(getattr, self.program_parts, channels)._dir_path
-
-    @property
-    def __program__(self):
-        return f"program⠶{self.program} on {self.__station__}"
-
-    def __repr__(self):
-        return self.__program__
-
-class Episode(Program):
-    def __init__(self, channel, station, program, date):
-        super().__init__(channel, station, program)
-        self.date = date
-
-    @property
-    def date(self):
-        return self._date
-
-    @date.setter
-    def date(self, d):
-        self._date = d
-
-    @property
-    def episode_dir(self):
-        return self.program_dir / cal_path(self.date)
-
-    @property
-    def download_dir(self):
-        return self.episode_dir / "assets"
-
-    @property
-    def __episode__(self):
-        return f"episode⠶{self.date} of {self.__program__}"
-
-    def __repr__(self):
-        return self.__episode__
 
 class Stream(Episode):
-    def __init__(self, channel, station, program, date, urlset, transcribe=False,
-            reload=False, load_full_transcripts=True, **preproc_opts):
-        # Set repr and directory properties for channel, station, program, episode, date
-        super().__init__(channel, station, program, date)
+    def __init__(
+        self,
+        channel,
+        station,
+        programme,
+        date,
+        urlset,
+        transcribe=False,
+        reload=False,
+        load_full_transcripts=True,
+        **preproc_opts,
+    ):
+        # Set repr and directory properties for:
+        # channel, station, programme, episode, date
+        super().__init__(channel, station, programme, date)
         self.stream_urls = urlset
         self.full_text_transcripts_loaded = False
         if reload:
@@ -125,12 +41,13 @@ class Stream(Episode):
                 # pass `full_text=True` to load the transcript text into memory
                 self.load_transcript_text(full_text=load_full_transcripts)
             except Exception as e:
-                print("Non-fatal error while trying to reload transcripts", file=stderr)
+                msg = "Non-fatal error while trying to reload transcripts"
+                print(msg, file=stderr)
         else:
             self.pull()
             self.preprocess(**preproc_opts)
             if transcribe:
-                self.transcribe() # Can also pass in model_to_load or `just_filenames`
+                self.transcribe()  # Can also pass in model_to_load or `just_filenames`
 
     @property
     def stream_urls(self):
@@ -163,7 +80,7 @@ class Stream(Episode):
             try:
                 self.segment_times["transcript"] = transcripts
             except Exception as e:
-                print(e, file=stderr) # Errors break entire object initialisation
+                print(e, file=stderr)  # Errors break entire object initialisation
 
     def pull(self, verbose=False):
         if verbose:
@@ -195,7 +112,9 @@ class Stream(Episode):
         if not transcoded_wav.exists():
             gathered_mp4 = gather_pulled_downloads(self.download_dir, self.episode_dir)
             transcoded_wav = mp4_to_wav(gathered_mp4)
-        self.transcript_timings, self.segment_dir = segment_pauses_and_spread(transcoded_wav, **opts)
+        self.transcript_timings, self.segment_dir = segment_pauses_and_spread(
+            transcoded_wav, **opts
+        )
         self.set_transcript_timings_config()
         self.transcript_timings.to_csv(self.txn_tsv, **self._txn_tsv_w_opts)
 
@@ -213,12 +132,12 @@ class Stream(Episode):
             self.segment_dir = self.episode_dir / "segmented"
         if not self.segment_dir.exists():
             raise ValueError("No segments to reload")
-    
+
     def reload_transcripts(self, transcribe=False):
         """
         Set the `segment_dir` and `transcript_dir` attributes which were otherwise
         provided by a call to `segment_pauses_and_spread` in the `preprocess` method.
-        
+
         Reload the `transcript_timings` DataFrame (with very small floating point
         error from original values).
         """
@@ -257,27 +176,32 @@ class Stream(Episode):
     def transcribe(self, model_to_load="facebook/wav2vec2-large-960h-lv60-self"):
         files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
         # Setting `.transcripts` attr adds `transcript` column to `.transcript_timings`
-        print(f"Transcribing {len(files_to_transcribe)} segmented audio files", file=stderr)
+        print(
+            f"Transcribing {len(files_to_transcribe)} segmented audio files",
+            file=stderr,
+        )
         self.transcript_dir = self.segment_dir / "transcripts"
         self.transcript_dir.mkdir(exist_ok=True)
         for f in tqdm(files_to_transcribe):
             transcript = transcribe_audio_file(f, model_to_load)
             transcript_filename = Path(f).stem + ".txt"
             with open(self.transcript_dir / transcript_filename, "w") as fh:
-                fh.write(transcript+"\n")
+                fh.write(transcript + "\n")
 
-    def export_transcripts(self, out_format="txt", out_dir=None, domain=None, single_file=False):
+    def export_transcripts(
+        self, out_format="txt", out_dir=None, domain=None, single_file=False
+    ):
         """
         If `out_format` is "txt" (default) the transcripts are exported as plain text,
         if `out_format` is "md" they are converted to GitHub-flavoured markdown (using
-        `<details>` blocks to display a collapsed view of the full transcripts and 
+        `<details>` blocks to display a collapsed view of the full transcripts and
         `<summary>` tags to display the associated summary text).
         if `out_format` is "mmd" they are converted to quill’s lever MMD format
         (specifically designed for transcripts, particularly when clauses are split
         on conjunctives).
         """
         dir_sep = "_"
-        program_dirname = dir_sep.join(["tap", *self.program_parts])
+        programme_dirname = dir_sep.join(["tap", *self.programme_parts])
         if domain:
             try:
                 from quill import AddressPath
@@ -289,7 +213,7 @@ class Stream(Episode):
             out_dir = AddressPath.from_parts(domain=domain, ymd=ymd).filepath
         elif out_dir is None:
             raise ValueError("No output directory supplied for transcript export")
-        out_dir = out_dir / program_dirname
+        out_dir = out_dir / programme_dirname
         if out_format not in DocSummaryExportEnum.__members__:
             raise ValueError(f"{out_format} is not a valid DocSummaryExportEnum")
         if not self.full_text_transcripts_loaded:

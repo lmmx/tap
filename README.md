@@ -70,7 +70,7 @@ cd -
 
 ### Stream downloading and reloading from disk
 
-For a given program, we can make a `Stream` object with its
+For a given programme, we can make a `Stream` object with its
 URLs for the day's episode, download ("pull"), and segment ("preprocess")
 the audio ready for transcription, which we kick off immediately:
 
@@ -83,14 +83,14 @@ stream = load_stream(transcribe=True)
 
 <p>
 
-- Current default program for `load_stream` is the BBC R4 Today programme.
+- Current default programme for `load_stream` is the BBC R4 Today programme.
 - Current default value of the `transcribe` argument for `load_stream` is `False`. Setting it to
   `True` will initiate the transcription immediately upon creating the stream object.
 - This step automatically calculates the URLs of the MP4 segments by obtaining the
-  episode ID from the list of available episodes from the stored program (series) ID.
-  - In future, when adding a new program, it will be possible to search for the program ID,
+  episode ID from the list of available episodes from the stored programme (series) ID.
+  - In future, when adding a new programme, it will be possible to search for the programme ID,
     or it could be obtained as the parent ID (given as episode metadata JSON) to then
-    store within the module entry for that program upon its creation in `tap.data.store`
+    store within the module entry for that programme upon its creation in `tap.data.store`
 - To get its URLs for the day before yesterday, pass the `ymd_ago` argument (a tuple)
   e.g. `load_stream(ymd_ago=(0,0,-2))` or pass the `ymd` argument [either a `datetime.date` or an integer tuple
   `(y,m,d)`] for an absolute date e.g. `load_stream(ymd=(2021,2,8))`
@@ -158,7 +158,7 @@ stream.export_transcripts(out_format="mmd", domain="poll", single_file=True)
 ```
 
 - The `single_file` option defaults to False, but this creates many files (one per transcript,
-  derived from a chunk of one or more audio segments, around 60 per 3 hour program). With
+  derived from a chunk of one or more audio segments, around 60 per 3 hour programme). With
   `single_file=True`, one file `transcript_summaries.mmd` is generated for the web (i.e. a single
   web page).
 
@@ -198,9 +198,9 @@ noEnergy        39.92   40.5
 male    40.5    59.96
 ```
 
-The benefit of calculating this once on the entire program is that it's less likely to assign
+The benefit of calculating this once on the entire programme is that it's less likely to assign
 the "no energy" label to the speech immediately at the beginning of an arbitrarily segmented
-audio clip (e.g. previously I split the program into 60 second breaks).
+audio clip (e.g. previously I split the programme into 60 second breaks).
 
 Given a minimum window (e.g. 10 seconds) we can segment on these "no energy" pauses.
 Any smaller segments than this simply get fused together.
@@ -225,12 +225,12 @@ and typing `channels.`<kbd>Tab</kbd> will enumerate the available channels
 (i.e. those already stored).
 
 For a given channel, tab completion (in future: command line tab completion)
-will give the path to a _channel » station » program_, e.g.
+will give the path to a _channel » station » programme_, e.g.
 
 ```py
 channels.bbc.r4.today
 ```
 
 - This corresponds to the `tap.data.store.channels.bbc.r4.today` module provided as an example of
-  how to set up a program for tap to download into.
-  - (In future I will consider how to automate the creation of modules for other programs!)
+  how to set up a programme for tap to download into.
+  - (In future I will consider how to automate the creation of modules for other programmes!)

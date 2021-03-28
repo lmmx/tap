@@ -3,19 +3,20 @@ from pathlib import Path
 from ..data.store.channels import _dir_path as data_dir
 from ..share.cal import cal_path, cal_shift, cal_date, parse_abs_from_rel_date
 from .streams import Stream
-#from .link_file_handling import handle_link_file
-from .m4s_url_handling import get_last_m4s_url
-from .stream_url_handling import construct_urlset
+
+from .stream_dir_prep import ensure_stream_dir
+from beeb.api import final_m4s_link_from_programme_pid
+from beeb.nav import ProgrammeCatalogue
+from beeb.stream.urlsets import StreamUrlSet
 
 __all__ = ["load_stream"]
 
 
 def load_stream(
-    channel="bbc", station="r4", program="today", ymd=None, ymd_ago=None,
-    **stream_opts
+    channel="bbc", station="r4", programme="Today", ymd=None, ymd_ago=None, **stream_opts
 ):
     """
-    Create a `Stream` for a specific episode of a radio program from the named arguments
+    Create a `Stream` for a specific episode of a radio programme from the named arguments
     and pass `stream_opts` through.
 
     `ymd` and `ymd_ago` are options to specify either an absolute
@@ -33,31 +34,22 @@ def load_stream(
     """
     ymd = parse_abs_from_rel_date(ymd, ymd_ago)
     cal_subpath = cal_path(ymd)
+    prog_date_dir = data_dir / channel / station / programme / cal_subpath
+    # This step obtains the episode PID and uses this to obtain the last M4S stream URL
+    if channel != "bbc":
+        raise NotImplementedError("Only currently supporting BBC stations")
+    programme_pid = ProgrammeCatalogue.lazy_generate(station).get_programme_by_title(
+        programme, pid_only=True
+    )
+    
+    ymd_parts = [*map(lambda p: int(p[:2]), ymd)]
+    y2k_y, m, d = ymd_parts
+    # Convert internal date to explicitly post-Y2K Y
+    y2k_y += 2000
+    y2k_ymd = tuple(y2k, m, d)
 
-    prog_date_dir = data_dir / channel / station / program / cal_subpath
-
-    #link_file = handle_link_file(data_dir, channel, station, program, cal_subpath)
-    #with open(link_file, "r") as f:
-    #    last_link_url = f.read().strip()
-    last_link_url = get_last_m4s_url(data_dir, channel, station, program, cal_subpath)
-
-    last_filename = Path(Path(last_link_url).name)
-    url_prefix = last_link_url[: -len(last_filename.name)]
-    url_suffix = last_filename.suffix
-    fname_prefix, fname_sep, last_file_num = last_filename.stem.rpartition("-")
-
-    if fname_prefix == fname_sep == "":
-        # rpartition gives two empty strings and the original string if separator not found
-        raise ValueError("Failed to parse filename (did not contain '-' separator)")
-
-    try:
-        last_file_num_i = int(last_file_num)
-    except ValueError as e:
-        raise ValueError(f"{last_file_num} was non-numeric")
-
-    # This should use StreamUrlSet
-    urlset = construct_urlset(last_file_num_i, url_prefix, fname_prefix, fname_sep, url_suffix)
-    # for i in range(1, last_file_num+1):
-    #    url_i = construct_url(i)
-    stream = Stream(channel, station, program, ymd, urlset, **stream_opts)
+    last_link_url = final_m4s_link_from_programme_pid(programme_pid, ymd=y2k_ymd)
+    ensure_stream_dir(data_dir, channel, station, programme_pid, cal_subpath)
+    urlset = StreamUrlSet.from_last_m4s_url(last_link_url)
+    stream = Stream(channel, station, programme, ymd, urlset, **stream_opts)
     return stream
