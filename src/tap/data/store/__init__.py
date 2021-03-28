@@ -1,4 +1,4 @@
-from . import channels
+from . import broadcasters
 from . import __path__ as _dir_nspath
 from pathlib import Path as _Path
 
