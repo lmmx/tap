@@ -31,7 +31,6 @@ class StreamTranscriberMixIn:
                 msg = "Non-fatal error while trying to reload transcripts"
                 print(msg, file=stderr)
         else:
-            self.pull()
             self.preprocess(**preproc_opts)
             if transcribe:
                 self.transcribe()  # Can also pass in model_to_load or `just_filenames`
@@ -49,7 +48,7 @@ class StreamTranscriberMixIn:
         which will cause further segmenting at the audio's minimum amplitude
         points to bring each segment below this limit).
         """
-        transcoded_wav = self.episode_dir / "output.wav"
+        transcoded_wav = self._source.preprocessed_output_file
         self.transcript_timings, self.segment_dir = segment_pauses_and_spread(
             transcoded_wav, **opts
         )
@@ -60,14 +59,14 @@ class StreamTranscriberMixIn:
         """
         Create any necessary directories
         """
-        self.txn_tsv = self.episode_dir / "segment_times.tsv"
+        self.txn_tsv = self._source.episode_dir / "segment_times.tsv"
         self._txn_tsv_r_opts = {"sep": "\t", "quoting": 2}
         self._txn_tsv_w_opts = {**self._txn_tsv_r_opts, "index": False}
         self._txn_tsv_r_col_map_opts = {"input": Path, "output": Path}
 
     def reload_segments(self):
         if not hasattr(self, "segment_dir"):
-            self.segment_dir = self.episode_dir / "segmented"
+            self.segment_dir = self._source.episode_dir / "segmented"
         if not self.segment_dir.exists():
             raise ValueError("No segments to reload")
 
@@ -139,7 +138,7 @@ class StreamTranscriberMixIn:
         on conjunctives).
         """
         dir_sep = "_"
-        programme_dirname = dir_sep.join(["tap", *self.programme_parts])
+        programme_dirname = dir_sep.join(["tap", *self._source.programme_parts])
         if domain:
             try:
                 from quill import AddressPath
@@ -147,7 +146,7 @@ class StreamTranscriberMixIn:
                 raise type(e)(
                     f"quill must be installed to export transcripts to domains\n{e.msg}"
                 )
-            ymd = [*self.date.timetuple()][:3]
+            ymd = [*self._source.date.timetuple()][:3]
             out_dir = AddressPath.from_parts(domain=domain, ymd=ymd).filepath
         elif out_dir is None:
             raise ValueError("No output directory supplied for transcript export")
