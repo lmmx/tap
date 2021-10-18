@@ -1,3 +1,4 @@
+from ..data.store.broadcasters import _dir_path as bc_store_dir
 from ..preproc.segment import segment_pauses_and_spread
 from ..stt import transcribe_audio_file
 from ..precis.summary_exporters import DocSummaryExportEnum
@@ -11,6 +12,10 @@ __all__ = ["StreamTranscriberMixIn"]
 
 
 class StreamTranscriberMixIn:
+    @property
+    def _root_store_dir(self):
+        return bc_store_dir
+
     def __init__(
         self,
         transcribe=False,
@@ -110,7 +115,7 @@ class StreamTranscriberMixIn:
                 transcripts.append(transcript)
         self.transcript_timings["transcripts"] = transcripts
 
-    def transcribe(self, model_to_load="facebook/wav2vec2-large-960h-lv60-self"):
+    def transcribe(self, model_to_load="facebook/wav2vec2-large-robust-ft-libri-960h"):
         files_to_transcribe = sorted(glob(str(self.segment_dir / "*.wav")))
         # Setting `.transcripts` attr adds `transcript` column to `.transcript_timings`
         print(
